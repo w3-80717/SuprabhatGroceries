@@ -2,16 +2,23 @@
 
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import dotenv from 'dotenv'; // <-- IMPORT dotenv
+import dotenv from 'dotenv';
 
-dotenv.config({ path: '.env' }); // <-- LOAD THE .env FILE
+dotenv.config({ path: '.env' });
 
 let mongoServer;
+
+const mongooseOpts = {
+  // Options for Mongoose 6+
+  serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+};
 
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
   const mongoUri = mongoServer.getUri();
-  await mongoose.connect(mongoUri);
+
+  await mongoose.connect(mongoUri, mongooseOpts);
 });
 
 afterAll(async () => {
@@ -19,7 +26,6 @@ afterAll(async () => {
   await mongoServer.stop();
 });
 
-// Clear all data after each test
 afterEach(async () => {
   const collections = mongoose.connection.collections;
   for (const key in collections) {

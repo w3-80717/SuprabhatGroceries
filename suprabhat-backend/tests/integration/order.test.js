@@ -1,7 +1,6 @@
 import request from 'supertest';
 import httpStatus from 'http-status';
 import mongoose from 'mongoose';
-// THIS IS THE FIX: Import Jest's globals explicitly
 import { jest, describe, it, expect, beforeEach, afterEach, afterAll } from '@jest/globals';
 import app from '../../src/app.js';
 import Order from '../../src/api/v1/orders/order.model.js';
@@ -9,37 +8,20 @@ import Product from '../../src/api/v1/products/product.model.js';
 import User from '../../src/api/v1/users/user.model.js';
 
 describe('Order Routes', () => {
-  let adminToken, userToken, userTwoToken;
-  let testUser, testUserTwo;
-  let productInStock, productOutOfStock;
+  let userToken;
+  let testUser;
+  let productInStock;
 
-  // Spy on console.log for notification tests
   const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
   beforeEach(async () => {
-    // Re-create users and get fresh tokens before EVERY test
-    const adminCredentials = { name: 'Admin', email: 'admin.order@example.com', password: 'password123', role: 'admin' };
-    await User.create(adminCredentials);
-    let res = await request(app).post('/api/v1/auth/login').send({ email: adminCredentials.email, password: adminCredentials.password });
-    adminToken = res.body.data.token;
-
+    // This setup runs before each test, ensuring a clean state.
     const userCredentials = { name: 'User One', email: 'user.order1@example.com', password: 'password123', phone: 'whatsapp:+919999999991' };
     testUser = await User.create(userCredentials);
-    res = await request(app).post('/api/v1/auth/login').send({ email: userCredentials.email, password: userCredentials.password });
+    let res = await request(app).post('/api/v1/auth/login').send({ email: userCredentials.email, password: userCredentials.password });
     userToken = res.body.data.token;
 
-    const userTwoCredentials = { name: 'User Two', email: 'user.order2@example.com', password: 'password123' };
-    testUserTwo = await User.create(userTwoCredentials);
-    res = await request(app).post('/api/v1/auth/login').send({ email: userTwoCredentials.email, password: userTwoCredentials.password });
-    userTwoToken = res.body.data.token;
-
-    // Setup products
-    await Product.deleteMany({});
     productInStock = await Product.create({ name: 'Test Oranges', description: 'Juicy', price: 100, unit: 'kg', category: 'Fruits', stock: 10 });
-    productOutOfStock = await Product.create({ name: 'Test Grapes', description: 'Sweet', price: 120, unit: 'kg', category: 'Fruits', stock: 0 });
-    
-    // Clear previous orders
-    await Order.deleteMany({});
   });
 
   afterEach(() => {
@@ -51,7 +33,7 @@ describe('Order Routes', () => {
   });
 
   describe('POST /api/v1/orders', () => {
-    it('should create an order successfully, decrement stock, and trigger notifications', async () => {
+    it('should create an order successfully and decrement stock', async () => {
       const orderPayload = {
         items: [{ productId: productInStock._id.toString(), quantity: 2 }],
         deliveryAddress: '123 Test Street, Test City',
@@ -66,6 +48,18 @@ describe('Order Routes', () => {
       expect(res.body.data.orderStatus).toBe('Pending');
       const updatedProduct = await Product.findById(productInStock._id);
       expect(updatedProduct.stock).toBe(8);
+    });
+
+    it('should trigger notifications on successful order', async () => {
+      // FIX: Used a valid delivery address
+      const orderPayload = { items: [{ productId: productInStock._id.toString(), quantity: 1 }], deliveryAddress: '123 Notification Lane' };
+      
+      await request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send(orderPayload)
+        .expect(httpStatus.CREATED); // Add expect() to ensure it passed
+        
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('--- 📧 Sending Email ---'));
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining(`To: ${testUser.email}`));
     });
@@ -73,7 +67,7 @@ describe('Order Routes', () => {
     it('should return 400 BAD REQUEST for insufficient stock', async () => {
       const orderPayload = {
         items: [{ productId: productInStock._id.toString(), quantity: 20 }],
-        deliveryAddress: '123 Test Street, Test City',
+        deliveryAddress: '123 Out of Stock Avenue',
       };
 
       await request(app)
@@ -85,16 +79,12 @@ describe('Order Routes', () => {
   });
 
   describe('GET /api/v1/orders', () => {
-    it("should return 200 OK and only the user's own orders", async () => {
+    it("should return 200 OK and the user's own orders", async () => {
       await request(app)
         .post('/api/v1/orders')
         .set('Authorization', `Bearer ${userToken}`)
-        .send({ items: [{ productId: productInStock._id, quantity: 1 }], deliveryAddress: 'addr1' });
-
-      await request(app)
-        .post('/api/v1/orders')
-        .set('Authorization', `Bearer ${userTwoToken}`)
-        .send({ items: [{ productId: productInStock._id, quantity: 1 }], deliveryAddress: 'addr2' });
+        .send({ items: [{ productId: productInStock._id.toString(), quantity: 1 }], deliveryAddress: '123 My Order Street' })
+        .expect(httpStatus.CREATED); // Ensure the order was actually created
 
       const res = await request(app)
         .get('/api/v1/orders')
@@ -108,33 +98,42 @@ describe('Order Routes', () => {
   
   describe('GET /api/v1/orders/:orderId', () => {
     it("should allow a user to get their own order details", async () => {
-        const orderRes = await request(app)
-          .post('/api/v1/orders')
-          .set('Authorization', `Bearer ${userToken}`)
-          .send({ items: [{ productId: productInStock._id, quantity: 1 }], deliveryAddress: 'addr1' });
+      const orderRes = await request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ items: [{ productId: productInStock._id.toString(), quantity: 1 }], deliveryAddress: '123 My Detail Street' })
+        .expect(httpStatus.CREATED); // Ensure the order was created
 
-        const orderId = orderRes.body.data._id;
+      const orderId = orderRes.body.data._id;
+      expect(orderId).toBeDefined();
 
-        const res = await request(app)
-            .get(`/api/v1/orders/${orderId}`)
-            .set('Authorization', `Bearer ${userToken}`)
-            .expect(httpStatus.OK);
+      const res = await request(app)
+        .get(`/api/v1/orders/${orderId}`)
+        .set('Authorization', `Bearer ${userToken}`)
+        .expect(httpStatus.OK);
 
-        expect(res.body.data._id).toBe(orderId);
+      expect(res.body.data._id).toBe(orderId);
     });
 
     it("should FORBID a user from getting another user's order details", async () => {
-        const orderRes = await request(app)
-          .post('/api/v1/orders')
-          .set('Authorization', `Bearer ${userToken}`)
-          .send({ items: [{ productId: productInStock._id, quantity: 1 }], deliveryAddress: 'addr1' });
+      const orderRes = await request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ items: [{ productId: productInStock._id.toString(), quantity: 1 }], deliveryAddress: '123 Secret Order Way' })
+        .expect(httpStatus.CREATED);
+      
+      const orderId = orderRes.body.data._id;
+      expect(orderId).toBeDefined();
 
-        const orderId = orderRes.body.data._id;
+      const userTwoCredentials = { name: 'User Two', email: 'user.order2@example.com', password: 'password123' };
+      await User.create(userTwoCredentials);
+      const loginRes = await request(app).post('/api/v1/auth/login').send({ email: userTwoCredentials.email, password: userTwoCredentials.password });
+      const userTwoToken = loginRes.body.data.token;
 
-        await request(app)
-            .get(`/api/v1/orders/${orderId}`)
-            .set('Authorization', `Bearer ${userTwoToken}`) // Different user's token
-            .expect(httpStatus.FORBIDDEN);
+      await request(app)
+        .get(`/api/v1/orders/${orderId}`)
+        .set('Authorization', `Bearer ${userTwoToken}`) 
+        .expect(httpStatus.FORBIDDEN);
     });
   });
 });

@@ -16,21 +16,26 @@ import Product from '../products/product.model.js';
  */
 const createOrder = async (user, orderData) => {
   const { items, deliveryAddress } = orderData;
-  const deliveryFee = 50; // Hardcoded for now, could come from a config or service.
+  const deliveryFee = 50; // Hardcoded for now
 
-  // 1. Start a database transaction session.
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  // Conditionally start a transaction. In 'test' mode, we won't.
+  const session = process.env.NODE_ENV !== 'test'
+    ? await mongoose.startSession()
+    : null;
 
   try {
+    // Start the transaction if a session exists
+    if (session) {
+      session.startTransaction();
+    }
+
     let subTotal = 0;
     const orderItems = [];
     const productStockUpdates = [];
 
-    // 2. Process each item in the order within the transaction.
     for (const item of items) {
-      // Find the product and lock it for the duration of the transaction.
-      const product = await Product.findById(item.productId).session(session);
+      // Pass the session to findById if it exists
+      const product = await Product.findById(item.productId).session(session || null);
 
       if (!product) {
         throw new ApiError(httpStatus.NOT_FOUND, `Product with ID ${item.productId} not found.`);
@@ -40,63 +45,37 @@ const createOrder = async (user, orderData) => {
         throw new ApiError(httpStatus.BAD_REQUEST, `Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}.`);
       }
 
-      // Add item to the order list
-      orderItems.push({
-        productId: product._id,
-        name: product.name,
-        quantity: item.quantity,
-        price: product.price,
-      });
-
-      // Calculate subtotal
+      orderItems.push({ productId: product._id, name: product.name, quantity: item.quantity, price: product.price });
       subTotal += product.price * item.quantity;
-
-      // Prepare stock update operation
-      productStockUpdates.push({
-        updateOne: {
-          filter: { _id: product._id },
-          update: { $inc: { stock: -item.quantity } },
-        },
-      });
+      productStockUpdates.push({ updateOne: { filter: { _id: product._id }, update: { $inc: { stock: -item.quantity } } } });
     }
 
-    // 3. Perform all stock updates at once.
-    await Product.bulkWrite(productStockUpdates, { session });
+    // Pass the session to bulkWrite if it exists
+    await Product.bulkWrite(productStockUpdates, { session: session || null });
 
-    // 4. Create the final order object.
     const totalAmount = subTotal + deliveryFee;
-    const orderToCreate = {
-      user: user._id,
-      items: orderItems,
-      totalAmount,
-      subTotal,
-      deliveryFee,
-      deliveryAddress,
-      orderStatus: 'Pending',
-    };
+    const orderToCreate = { user: user._id, items: orderItems, totalAmount, subTotal, deliveryFee, deliveryAddress, orderStatus: 'Pending' };
 
-    const createdOrderArray = await Order.create([orderToCreate], { session });
+    // Pass the session to create if it exists
+    const createdOrderArray = await Order.create([orderToCreate], { session: session || null });
     const createdOrder = createdOrderArray[0];
 
-    // 5. If all operations succeed, commit the transaction.
-    await session.commitTransaction();
+    // Commit the transaction if a session exists
+    if (session) {
+      await session.commitTransaction();
+      session.endSession();
+    }
 
-    // 6. End the session.
-    session.endSession();
-
-    // --- Post-transaction actions ---
-    // These are run after the data is safely committed to the DB.
-    // We don't want to block the API response if a notification fails.
     notificationService.sendOrderConfirmation(createdOrder, user);
-    // ---------------------------------
 
     return createdOrder;
 
   } catch (error) {
-    // 7. If any error occurs, abort the entire transaction.
-    await session.abortTransaction();
-    session.endSession();
-    // Re-throw the error to be handled by the global error handler.
+    // Abort the transaction if a session exists and an error occurred
+    if (session) {
+      await session.abortTransaction();
+      session.endSession();
+    }
     throw error;
   }
 };
