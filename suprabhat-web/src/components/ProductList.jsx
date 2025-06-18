@@ -3,35 +3,41 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchProducts } from '../api/products';
 
 const ProductList = () => {
-  // Use TanStack Query to fetch data
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['products'], // A unique key for this query
-    queryFn: fetchProducts,   // The function that will fetch the data
+    queryKey: ['products'],
+    queryFn: fetchProducts,
   });
 
   if (isLoading) {
-    return <div>Loading products...</div>;
+    return <div className="text-center p-10">Loading products...</div>;
   }
 
   if (isError) {
-    return <div>Error fetching products: {error.message}</div>;
+    return <div className="text-center p-10 text-red-500">Error fetching products: {error.message}</div>;
   }
 
-  // The actual array of products is in data.results
   const products = data?.results || [];
 
   return (
     <div>
-      <h2>Our Products</h2>
       {products.length === 0 ? (
-        <p>No products found.</p>
+        <p className="text-center p-10">No products found.</p>
       ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {products.map((product) => (
-            <div key={product._id} style={{ border: '1px solid #ccc', padding: '16px', borderRadius: '8px' }}>
-              <h3>{product.name}</h3>
-              <p>Price: ₹{product.price} / {product.unit}</p>
-              <p>In Stock: {product.stock}</p>
+            <div key={product._id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 flex flex-col">
+              {/* Image Placeholder */}
+              <div className="w-full h-40 bg-gray-200 rounded-md mb-4 flex items-center justify-center">
+                 <span className="text-gray-500">Image</span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800">{product.name}</h3>
+              <p className="text-gray-600 mt-1">₹{product.price} / {product.unit}</p>
+              <p className={`text-sm mt-2 ${product.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {product.stock > 0 ? `In Stock: ${product.stock}` : 'Out of Stock'}
+              </p>
+              <button className="mt-4 w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition-colors">
+                Add to Cart
+              </button>
             </div>
           ))}
         </div>

@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // The base URL for our backend API.
 // In a real app, this would come from an environment variable.
-const API_URL = 'http://localhost:8000/api/v1';
+const API_URL = '/api/v1';
 
 const apiClient = axios.create({
   baseURL: API_URL,

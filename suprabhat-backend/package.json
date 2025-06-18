@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --verbose"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --verbose",
+    "db:seed:admin": "node scripts/seedAdmin.js"
   },
   "keywords": [],
   "author": "",

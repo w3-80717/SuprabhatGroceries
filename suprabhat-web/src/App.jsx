@@ -1,13 +1,24 @@
 import React from 'react';
-import ProductList from './components/ProductList';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Header from './components/Header';
+import HomePage from './pages/HomePage';
+import CartPage from './pages/CartPage';
+import AuthPage from './pages/AuthPage';
 
 function App() {
   return (
-    <div style={{ padding: '20px' }}>
-      <h1>Suprabhat Fruit and Vegetable Shop</h1>
-      <hr style={{ margin: '20px 0' }} />
-      <ProductList />
-    </div>
+    <Router>
+      <div className="bg-gray-50 min-h-screen">
+        <Header />
+        <main className="container mx-auto px-6 py-8">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/cart" element={<CartPage />} />
+            <Route path="/login" element={<AuthPage />} />
+          </Routes>
+        </main>
+      </div>
+    </Router>
   );
 }
 

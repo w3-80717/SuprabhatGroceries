@@ -74,37 +74,37 @@ logs/
 # Backend specific (Express.js / Node.js)
 # ------------------------------------------------------------------------------
 # Assuming your backend code is in a 'backend/' subdirectory
-backend/node_modules/
-backend/dist/
-backend/coverage/
-backend/.env
-backend/.env.*
-!backend/.env.example
-backend/npm-debug.log*
-backend/yarn-debug.log*
-backend/yarn-error.log*
+suprabhat-backend/node_modules/
+suprabhat-backend/dist/
+suprabhat-backend/coverage/
+suprabhat-backend/.env
+suprabhat-backend/.env.*
+!suprabhat-backend/.env.example
+suprabhat-backend/npm-debug.log*
+suprabhat-backend/yarn-debug.log*
+suprabhat-backend/yarn-error.log*
 # Add any other backend-specific build outputs or logs
 
 # Frontend specific (React.js - CRA / Vite)
 # ------------------------------------------------------------------------------
 # Assuming your frontend code is in a 'frontend/' subdirectory
-frontend/node_modules/
-frontend/build/      # For Create React App
-frontend/dist/       # For Vite
-frontend/coverage/
-frontend/.env
-frontend/.env.local
-frontend/.env.development.local
-frontend/.env.test.local
-frontend/.env.production.local
-!frontend/.env.example # If you have a separate example for frontend
-frontend/npm-debug.log*
-frontend/yarn-debug.log*
-frontend/yarn-error.log*
+suprabhat-web/node_modules/
+suprabhat-web/build/      # For Create React App
+suprabhat-web/dist/       # For Vite
+suprabhat-web/coverage/
+suprabhat-web/.env
+suprabhat-web/.env.local
+suprabhat-web/.env.development.local
+suprabhat-web/.env.test.local
+suprabhat-web/.env.production.local
+!suprabhat-web/.env.example # If you have a separate example for suprabhat-web
+suprabhat-web/npm-debug.log*
+suprabhat-web/yarn-debug.log*
+suprabhat-web/yarn-error.log*
 # Create React App specific
-frontend/build/**/*.map # Source maps if you don't want them in repo (usually large)
+suprabhat-web/build/**/*.map # Source maps if you don't want them in repo (usually large)
 # Vite specific
-frontend/dist/**/*.map # Source maps if you don't want them in repo
+suprabhat-web/dist/**/*.map # Source maps if you don't want them in repo
 
 # Operating System specific files
 # ------------------------------------------------------------------------------
