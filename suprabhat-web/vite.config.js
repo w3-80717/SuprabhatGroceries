@@ -1,23 +1,42 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// This is the standard ES Module way to get __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  
+  // 1. Development Server Configuration
   server: {
+    // Configure the proxy for API requests
     proxy: {
-      // The key is the path you want to proxy.
-      // Any request to '/api' will be forwarded.
+      // Any request starting with /api will be forwarded
       '/api': {
-        // The target is your backend server.
+        // Your backend server running on port 8000
         target: 'http://localhost:8000',
-        // This is crucial for virtual hosts and ensures
-        // the 'Host' header is set correctly.
+        
+        // Needed for virtual-hosted sites and to avoid CORS issues
         changeOrigin: true,
-        // Optional: you can rewrite the path if needed,
-        // but for our case, we don't need to.
+        
+        // You can uncomment this if you need to remove the /api prefix
+        // before the request is sent to your backend. We don't need it
+        // for our current backend setup.
         // rewrite: (path) => path.replace(/^\/api/, ''),
       },
+    },
+  },
+
+  // 2. Path Alias Configuration
+  resolve: {
+    alias: {
+      // This allows you to use `import Something from '@/components/Something'`
+      // instead of complex relative paths like `../../components/Something`
+      '@': path.resolve(__dirname, './src'),
     },
   },
 });

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchProducts } from '../api/products.js'; // Using absolute path alias
-import { useCartStore } from '../store/cartStore.js'; // Import the cart store
+import { fetchProducts } from '@/api/products.js'; // Using absolute path alias
+import { useCartStore } from '@/store/cartStore.js'; // Import the cart store
 
 const ProductList = () => {
   // Get the addToCart action from our Zustand store

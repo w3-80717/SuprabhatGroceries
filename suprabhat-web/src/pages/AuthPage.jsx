@@ -4,8 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { loginUser, registerUser } from '../api/auth';
-import { useAuthStore } from '../store/authStore';
+import { loginUser, registerUser } from '@/api/auth';
+import { useAuthStore } from '@/store/authStore';
 
 // Zod validation schemas
 const registerSchema = z.object({

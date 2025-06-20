@@ -1,5 +1,5 @@
 import React from 'react';
-import { useCartStore } from '../store/cartStore.js';
+import { useCartStore } from '@/store/cartStore.js';
 
 const CartPage = () => {
   // Get the full state and actions from the cart store
