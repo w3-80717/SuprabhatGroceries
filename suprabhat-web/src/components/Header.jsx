@@ -22,7 +22,9 @@ const Header = () => {
         </Link>
         <nav className="flex items-center space-x-4 md:space-x-6">
           <Link to="/" className="text-gray-700 hover:text-green-800 font-medium">Home</Link>
-          <Link to="/about" className="text-gray-700 hover:text-green-800 font-medium">About</Link> {/* <-- Add Link */}
+          <Link to="/about" className="text-gray-700 hover:text-green-800 font-medium">About</Link>
+            <Link to="/products" className="text-gray-700 hover:text-green-800 font-medium">Product</Link>
+           {/* <-- Add Link */}
           
           <Link to="/cart" className="relative text-gray-700 hover:text-green-800 font-medium">
             {/* Shopping cart icon */}
