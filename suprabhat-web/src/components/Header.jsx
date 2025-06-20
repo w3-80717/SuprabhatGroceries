@@ -18,7 +18,7 @@ const Header = () => {
     <header className="bg-white shadow-md sticky top-0 z-10">
       <div className="container mx-auto px-6 py-4 flex justify-between items-center">
         <Link to="/" className="text-2xl font-bold text-green-800 hover:text-green-700">
-          Suprabhat
+          <img src="suprabhaticon.png" className='h-10 w-10'></img>
         </Link>
         <nav className="flex items-center space-x-4 md:space-x-6">
           <Link to="/" className="text-gray-700 hover:text-green-800 font-medium">Home</Link>
