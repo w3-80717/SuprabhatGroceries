@@ -51,12 +51,30 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    //  isDeleted: {
+    //   type: Boolean,
+    //   default: false,
+    //   index: true, // Index this for faster queries
+    // },
+      // --- ADD THIS FIELD ---
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true, 
+    },  
   },
   { timestamps: true }
 );
 
 // Create a text index for searching
 productSchema.index({ name: 'text', description: 'text', category: 'text' });
+// --- NEW METHOD ---
+// This ensures that normal find queries automatically filter out deleted products.
+productSchema.pre(/^find/, function(next) {
+  // `this` is the query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});
 
 const Product = mongoose.model('Product', productSchema);
 

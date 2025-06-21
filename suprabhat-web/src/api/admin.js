@@ -66,6 +66,12 @@ export const publishProduct = async (productId) => {
   return response.data.data;
 }
 
+// This function is for toggling the isPublished flag
+export const togglePublishStatus = async ({ productId, isPublished }) => {
+    const response = await apiClient.put(`/products/admin/${productId}`, { isPublished });
+    return response.data.data;
+}
+
 export const fetchAllProductsAdmin = async () => {
   const response = await apiClient.get('/products/admin/all'); // Use the new dedicated route
   return response.data.data;

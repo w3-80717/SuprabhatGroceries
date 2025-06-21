@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchAllProductsAdmin, createProduct, updateProduct, deleteProduct, publishProduct } from '@/api/admin.js';
+import { fetchAllProductsAdmin, createProduct, updateProduct, deleteProduct, togglePublishStatus } from '@/api/admin.js';
 import Modal from '@/components/Modal.jsx';
 import ProductForm from '@/components/ProductForm.jsx';
 import { FiEdit, FiTrash2, FiPlusCircle, FiEye, FiEyeOff } from 'react-icons/fi';
@@ -10,7 +10,6 @@ const ProductManagementPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
-  // --- QUERIES and MUTATIONS ---
   const { data, isLoading, isError } = useQuery({
     queryKey: ['allAdminProducts'],
     queryFn: fetchAllProductsAdmin,
@@ -18,7 +17,7 @@ const ProductManagementPage = () => {
 
   const mutationOptions = {
     onSuccess: () => {
-      queryClient.invalidateQueries(['allAdminProducts']);
+      queryClient.invalidateQueries({ queryKey: ['allAdminProducts'] });
       setIsModalOpen(false);
       setEditingProduct(null);
     },
@@ -27,9 +26,8 @@ const ProductManagementPage = () => {
   const createMutation = useMutation({ ...mutationOptions, mutationFn: createProduct });
   const updateMutation = useMutation({ ...mutationOptions, mutationFn: updateProduct });
   const deleteMutation = useMutation({ ...mutationOptions, mutationFn: deleteProduct });
-  const publishMutation = useMutation({ ...mutationOptions, mutationFn: publishProduct });
+  const publishMutation = useMutation({ ...mutationOptions, mutationFn: togglePublishStatus });
 
-  // --- HANDLER FUNCTIONS ---
   const handleFormSubmit = (formData) => {
     if (editingProduct) {
       updateMutation.mutate({ productId: editingProduct._id, updateData: formData });
@@ -39,22 +37,25 @@ const ProductManagementPage = () => {
   };
   
   const handleDelete = (productId) => {
-    if (window.confirm('Are you sure you want to permanently delete this product? This action cannot be undone.')) {
+    if (window.confirm('Are you sure you want to delete this product? It will be hidden from users but can be recovered later.')) {
       deleteMutation.mutate(productId);
     }
   };
 
   const handleTogglePublish = (product) => {
-    if (product.isPublished) {
-      // Un-publish by calling update
-      updateMutation.mutate({ productId: product._id, updateData: { isPublished: false } });
-    } else {
-      // Re-publish
-      publishMutation.mutate(product._id);
-    }
+    publishMutation.mutate({ productId: product._id, isPublished: !product.isPublished });
   };
 
-  // --- UI LOGIC ---
+  const openAddModal = () => {
+    setEditingProduct(null);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (product) => {
+    setEditingProduct(product);
+    setIsModalOpen(true);
+  };
+
   if (isLoading) return <div className="text-center p-10">Loading Products...</div>;
   if (isError) return <div className="text-center p-10 text-red-500">Error fetching products.</div>;
 
@@ -62,7 +63,16 @@ const ProductManagementPage = () => {
 
   return (
     <div className="container mx-auto px-6 py-8">
-      {/* ... Add New Product Button and Modal (no change needed) ... */}
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-3xl font-bold text-gray-800">Product Management</h2>
+        <button onClick={openAddModal} className="bg-brand-green hover:bg-brand-green-light text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+          <FiPlusCircle /> Add New Product
+        </button>
+      </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingProduct ? 'Edit Product' : 'Add New Product'}>
+        <ProductForm product={editingProduct} onSubmit={handleFormSubmit} isLoading={createMutation.isLoading || updateMutation.isLoading} onCancel={() => setIsModalOpen(false)} />
+      </Modal>
 
       <div className="bg-white shadow-md rounded-lg overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
@@ -94,21 +104,17 @@ const ProductManagementPage = () => {
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
                   {!product.isDeleted && (
                     <>
-                      <button 
-                        onClick={() => handleTogglePublish(product)} 
-                        className={product.isPublished ? 'text-yellow-500 hover:text-yellow-700' : 'text-green-500 hover:text-green-700'}
-                        title={product.isPublished ? 'Unpublish' : 'Publish'}
-                      >
+                      <button onClick={() => handleTogglePublish(product)} className={product.isPublished ? 'text-yellow-500 hover:text-yellow-700' : 'text-green-500 hover:text-green-700'} title={product.isPublished ? 'Unpublish' : 'Publish'}>
                         {product.isPublished ? <FiEyeOff /> : <FiEye />}
                       </button>
                       <button onClick={() => openEditModal(product)} className="text-indigo-600 hover:text-indigo-900" title="Edit">
                         <FiEdit />
                       </button>
-                      <button onClick={() => handleDelete(product._id)} className="text-red-600 hover:text-red-900" title="Delete">
-                        <FiTrash2 />
-                      </button>
                     </>
                   )}
+                  <button onClick={() => handleDelete(product._id)} className="text-red-600 hover:text-red-900" title="Delete">
+                    <FiTrash2 />
+                  </button>
                 </td>
               </tr>
             ))}
