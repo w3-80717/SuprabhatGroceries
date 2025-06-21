@@ -43,10 +43,17 @@ const listAllProductsForAdmin = asyncHandler(async (req, res) => {
   );
 });
 
+// Add a new controller function
+const deleteProductById = asyncHandler(async (req, res) => {
+  await productService.deleteProductById(req.params.productId);
+  res.status(httpStatus.NO_CONTENT).send();
+});
+
 export const productController = {
   listProducts,
   getProductDetails,
   createProductByAdmin,
   updateProductByAdmin,
   listAllProductsForAdmin,
+  deleteProductById,
 };

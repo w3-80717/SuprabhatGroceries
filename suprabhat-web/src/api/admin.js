@@ -54,9 +54,17 @@ export const updateProduct = async ({ productId, updateData }) => {
 export const deleteProduct = async (productId) => {
   // We need to build this endpoint on the backend.
   // For now, we "soft delete" by un-publishing.
-  const response = await apiClient.put(`/products/admin/${productId}`, { isPublished: false });
-  return response.data.data;
+  // const response = await apiClient.put(`/products/admin/${productId}`, { isPublished: false });
+  // return response.data.data;
+   await apiClient.delete(`/products/admin/${productId}`);
+  return productId;
 };
+
+// NEW function to re-publish a product
+export const publishProduct = async (productId) => {
+  const response = await apiClient.put(`/products/admin/${productId}`, { isPublished: true });
+  return response.data.data;
+}
 
 export const fetchAllProductsAdmin = async () => {
   const response = await apiClient.get('/products/admin/all'); // Use the new dedicated route

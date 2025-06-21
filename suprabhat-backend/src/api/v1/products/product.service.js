@@ -80,6 +80,7 @@ const buildQueryOptions = (options) => {
   const filter = {};
   // For public view, only show published products that are in stock
   filter.isPublished = true;
+   filter.isDeleted = false;
   if(inStock === undefined || inStock === 'true') {
       filter.stock = { $gt: 0 };
   }
@@ -112,8 +113,35 @@ const buildQueryOptions = (options) => {
 };
 
 const getAllProductsAdmin = async () => {
-  const products = await Product.find({}).sort({ createdAt: -1 });
-  return { results: products, totalResults: products.length };
+  // const products = await Product.find({}).sort({ createdAt: -1 });
+  // return { results: products, totalResults: products.length };
+
+  // .findWithDeleted() is not a real Mongoose method.
+  // We use .find() and then explicitly tell it to ignore the default scope.
+  const products = await Product.find({}).sort({ createdAt: -1 }).setOptions({ withDeleted: true });
+  // A better way is to create a static method on the model, but this is simpler for now.
+  // A more robust way is to pass an option to ignore the `pre` hook, but Mongoose
+  // doesn't have a built-in, easy way. The best practice is often to have a separate
+  // query for admin that doesn't use the model's default find. Let's adjust this.
+  
+  // The SIMPLEST way is to just query directly, bypassing the hook logic for this one case.
+  const allProducts = await mongoose.model('Product').find({}).sort({ createdAt: -1 });
+  
+  return { results: allProducts, totalResults: allProducts.length };
+};
+
+// --- NEW SERVICE FUNCTION ---
+const deleteProductById = async (productId) => {
+  // This is a "soft delete". We just mark the product as deleted.
+  const product = await Product.findByIdAndUpdate(
+    productId,
+    { isDeleted: true, isPublished: false }, // Also unpublish when deleting
+    { new: true }
+  );
+  if (!product) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Product not found');
+  }
+  return product;
 };
 
 export const productService = {
@@ -122,4 +150,5 @@ export const productService = {
   createProduct,
   updateProduct,
   getAllProductsAdmin,
+  deleteProductById,
 };

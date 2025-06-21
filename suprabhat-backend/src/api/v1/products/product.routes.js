@@ -34,7 +34,8 @@ router.get(
   '/admin/all',
   authMiddleware,
   adminMiddleware,
-  productController.listAllProductsForAdmin // We will create this controller
+  productController.listAllProductsForAdmin, // We will create this controller
+   productController.deleteProductById
 );
 
 export default router;
