@@ -35,9 +35,18 @@ const updateProductByAdmin = asyncHandler(async (req, res) => {
   );
 });
 
+// Add this new controller function
+const listAllProductsForAdmin = asyncHandler(async (req, res) => {
+  const products = await productService.getAllProductsAdmin(); // New service function
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, products, 'All products retrieved for admin')
+  );
+});
+
 export const productController = {
   listProducts,
   getProductDetails,
   createProductByAdmin,
   updateProductByAdmin,
+  listAllProductsForAdmin,
 };

@@ -111,10 +111,15 @@ const buildQueryOptions = (options) => {
   return { filter, sortOptions, paginationOptions };
 };
 
+const getAllProductsAdmin = async () => {
+  const products = await Product.find({}).sort({ createdAt: -1 });
+  return { results: products, totalResults: products.length };
+};
 
 export const productService = {
   getProducts,
   getProductById,
   createProduct,
   updateProduct,
+  getAllProductsAdmin,
 };

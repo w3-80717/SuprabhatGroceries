@@ -9,6 +9,9 @@ import AuthPage from '@/pages/AuthPage.jsx';
 import ProfilePage from '@/pages/ProfilePage.jsx';
 import AboutPage from '@/pages/AboutPage.jsx';
 import ContactPage from '@/pages/ContactPage.jsx'; // <-- Import Contact Page
+//... other imports
+import AdminLayout from '@/components/AdminLayout.jsx';
+import ProductManagementPage from '@/pages/admin/ProductManagementPage.jsx';
 
 function App() {
   return (
@@ -24,6 +27,10 @@ function App() {
             <Route path="/cart" element={<CartPage />} />
             <Route path="/login" element={<AuthPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+             <Route path="/admin" element={<AdminLayout />}>
+              <Route path="products" element={<ProductManagementPage />} />
+              {/* Add more admin routes here like <Route path="orders" ... /> */}
+            </Route>
           </Routes>
         </main>
         <Footer /> {/* <-- Add Footer here */}

@@ -29,4 +29,12 @@ router.put(
   productController.updateProductByAdmin
 );
 
+// Add a new route specifically for admins to get all products
+router.get(
+  '/admin/all',
+  authMiddleware,
+  adminMiddleware,
+  productController.listAllProductsForAdmin // We will create this controller
+);
+
 export default router;
