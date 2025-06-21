@@ -10,9 +10,10 @@ import { FiChevronRight } from 'react-icons/fi'; // Using an icon library
 
 // --- 1. Hero Section with SVG Wave Divider ---
 const HeroSection = () => (
-  <div className="relative bg-brand-green text-white">
-    <div className="container mx-auto px-6 py-24 text-center">
-      <h1 className="text-4xl md:text-6xl font-extrabold leading-tight">
+  <div className="relative bg-brand-green text-white overflow-hidden">
+    <div className="container mx-auto px-6 py-20 text-center">
+      {/* Use responsive text sizes */}
+      <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight">
         Pure, Simple, Farm-Fresh.
       </h1>
       <p className="mt-4 text-lg md:text-xl text-green-100 max-w-2xl mx-auto">
@@ -26,7 +27,7 @@ const HeroSection = () => (
       </Link>
     </div>
     {/* SVG Wave Divider for a soft, organic transition */}
-    <div className="absolute bottom-0 left-0 w-full">
+    <div className="absolute bottom-[-8vw] left-0 w-full">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320">
         <path fill="#f5f5dc" fillOpacity="1" d="M0,192L48,176C96,160,192,128,288,133.3C384,139,480,181,576,186.7C672,192,768,160,864,133.3C960,107,1056,85,1152,96C1248,107,1344,149,1392,170.7L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
       </svg>
