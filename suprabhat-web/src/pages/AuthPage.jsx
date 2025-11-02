@@ -57,7 +57,7 @@ const AuthPage = () => {
 
   return (
     <div style={{ maxWidth: '400px', margin: '2rem auto', padding: '2rem', border: '1px solid #ccc', borderRadius: '8px' }}>
-      <h2>{isLogin ? 'Login' : 'Create Account'}</h2>
+      <h2 style={{fontSize:'20px', fontWeight:'bold'}}>{isLogin ? 'Login' : 'Create Account'}</h2>
       <form onSubmit={handleSubmit(onSubmit)}>
         {!isLogin && (
           <div style={{ marginBottom: '1rem' }}>
