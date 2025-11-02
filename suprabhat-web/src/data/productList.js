@@ -1,40 +1,9 @@
-// Example: productList.js
 const products = [
-  {
-    id: 1,
-    name: "Basmati Rice",
-    price: 120,
-    image: "https://via.placeholder.com/100?text=Rice",
-    description: "Premium quality basmati rice, 1kg pack."
-  },
-  {
-    id: 2,
-    name: "Sunflower Oil",
-    price: 180,
-    image: "https://via.placeholder.com/100?text=Oil",
-    description: "Pure sunflower oil, 1L bottle."
-  },
-  {
-    id: 3,
-    name: "Wheat Flour",
-    price: 45,
-    image: "https://via.placeholder.com/100?text=Flour",
-    description: "Whole wheat flour, 1kg pack."
-  },
-  {
-    id: 4,
-    name: "Sugar",
-    price: 40,
-    image: "https://via.placeholder.com/100?text=Sugar",
-    description: "Refined sugar, 1kg pack."
-  },
-  {
-    id: 5,
-    name: "Tea Powder",
-    price: 90,
-    image: "https://via.placeholder.com/100?text=Tea",
-    description: "Strong tea powder, 500g pack."
-  }
+  { id: 1, name: 'Tomatoes', price: 60, image: 'public/images/tomato.jpeg', unit: 'kg', stock: 20 },
+  { id: 2, name: 'Potatoes', price: 30, image: '/images/potato.jpeg', unit: 'kg', stock: 30 },
+  { id: 3, name: 'Wheat Flour', price: 45, image: 'https://via.placeholder.com/300?text=Flour', unit: 'kg', stock: 10 },
+  { id: 4, name: 'Sugar', price: 40, image: 'https://via.placeholder.com/300?text=Sugar', unit: 'kg', stock: 15 },
+  { id: 5, name: 'Tea Powder', price: 90, image: 'https://via.placeholder.com/300?text=Tea', unit: '500g', stock: 8 },
 ];
 
-export default productList;
+export default products;
