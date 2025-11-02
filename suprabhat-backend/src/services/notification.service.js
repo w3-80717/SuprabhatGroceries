@@ -1,3 +1,5 @@
+// File: src/services/notification.service.js
+
 import { emailService } from './email.service.js';
 import { whatsAppService } from './whatsapp.service.js';
 
@@ -60,7 +62,8 @@ const sendOrderConfirmation = async (order, user) => {
  */
 const sendOrderStatusUpdate = async (order, user) => {
   // Here, we might choose to only send a WhatsApp for quick updates.
-  if (user.phone) {
+  // Ensure user and phone exist for WhatsApp notification.
+  if (user && user.phone) { 
     const message = generateOrderStatusUpdateText(order, user);
     whatsAppService.sendWhatsAppMessage(user.phone, message)
       .catch(err => console.error('Failed to send status update WhatsApp:', err));

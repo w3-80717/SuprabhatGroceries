@@ -1,10 +1,9 @@
-// ...existing code...
+// File: src/pages/CartPage.jsx
+
 import React from 'react';
 import { useCartStore } from '@/store/cartStore.js';
-
-//const placeholderImage = '/images/placeholder.png'; // put a fallback image in public/images or change to external URL
-
-
+import { Link, useNavigate } from 'react-router-dom'; // Import Link and useNavigate
+import { useAuthStore } from '@/store/authStore.js'; // Import auth store
 
 const CartPage = () => {
   const {
@@ -14,11 +13,23 @@ const CartPage = () => {
     decrementQuantity,
     getTotalPrice
   } = useCartStore();
+  const { isAuthenticated } = useAuthStore(); // Check authentication status
+  const navigate = useNavigate();
+
+  const DELIVERY_FEE = 50;
 
   // fallback total calculation if store doesn't provide getTotalPrice
   const totalPrice = (typeof getTotalPrice === 'function')
     ? getTotalPrice()
     : items.reduce((sum, it) => sum + ((it.product?.price || 0) * (it.quantity || 0)), 0);
+
+  const handleProceedToCheckout = () => {
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: '/cart' } }); // Redirect to login, then back to cart
+    } else {
+      navigate('/checkout'); // Proceed to checkout page
+    }
+  };
 
   return (
     <div className="container mx-auto px-6 py-8">
@@ -27,6 +38,9 @@ const CartPage = () => {
       {items.length === 0 ? (
         <div className="bg-white p-6 rounded-lg shadow-sm">
           <p className="text-gray-500">Your cart is currently empty.</p>
+          <Link to="/products" className="mt-4 inline-block bg-brand-green text-white py-2 px-4 rounded-lg hover:bg-brand-green-light">
+            Start Shopping
+          </Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -40,7 +54,7 @@ const CartPage = () => {
                 {/* Product Info */}
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 bg-gray-200 rounded-md overflow-hidden flex items-center justify-center">
-                    <img src={product.images[0]} alt={product.name} width={200} />
+                    <img src={product.images?.[0] || '/images/placeholder.png'} alt={product.name} className="object-cover w-full h-full" />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold">{product?.name}</h3>
@@ -89,13 +103,17 @@ const CartPage = () => {
               </div>
               <div className="flex justify-between mb-4">
                 <span>Delivery Fee</span>
-                <span>₹50.00</span>
+                <span>₹{DELIVERY_FEE.toFixed(2)}</span>
               </div>
               <div className="border-t pt-4 flex justify-between font-bold text-lg">
                 <span>Total</span>
-                <span>₹{(totalPrice + 50).toFixed(2)}</span>
+                <span>₹{(totalPrice + DELIVERY_FEE).toFixed(2)}</span>
               </div>
-              <button className="mt-6 w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition-colors">
+              {/* Change button to call handler */}
+              <button
+                onClick={handleProceedToCheckout}
+                className="mt-6 w-full bg-brand-green text-white py-2 rounded-lg hover:bg-brand-green-light transition-colors"
+              >
                 Proceed to Checkout
               </button>
             </div>

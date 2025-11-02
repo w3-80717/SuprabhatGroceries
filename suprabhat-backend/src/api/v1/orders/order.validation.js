@@ -28,7 +28,33 @@ const getOrderSchema = z.object({
     }),
 });
 
+// --- New Admin Validation Schemas ---
+
+const updateOrderStatusSchema = z.object({
+  params: z.object({
+    orderId: objectIdSchema,
+  }),
+  body: z.object({
+    status: z.enum(['Pending', 'Confirmed', 'Processing', 'Out for Delivery', 'Delivered', 'Cancelled', 'Payment Failed'], {
+      message: 'Invalid order status',
+    }),
+  }),
+});
+
+// Optional: Schema for admin listing with pagination/filters if needed in the future
+const listAllOrdersAdminSchema = z.object({
+  query: z.object({
+    status: z.enum(['Pending', 'Confirmed', 'Processing', 'Out for Delivery', 'Delivered', 'Cancelled', 'Payment Failed']).optional(),
+    page: z.coerce.number().int().positive().default(1).optional(),
+    limit: z.coerce.number().int().positive().default(10).optional(),
+    sortBy: z.string().optional(), // e.g., 'createdAt:desc'
+  }).optional(),
+});
+
+
 export const orderValidation = {
   createOrderSchema,
   getOrderSchema,
+  updateOrderStatusSchema, // Export new validation schema
+  listAllOrdersAdminSchema, // Export new validation schema
 };

@@ -21,3 +21,13 @@ export const fetchMyOrders = async () => {
   const response = await apiClient.get('/');
   return response.data.data;
 };
+
+/**
+ * Creates a new order.
+ * @param {Object} orderData - The order details including items and delivery address.
+ * @returns {Promise<Object>} The created order object.
+ */
+export const createOrder = async (orderData) => {
+  const response = await apiClient.post('/', orderData);
+  return response.data.data;
+};

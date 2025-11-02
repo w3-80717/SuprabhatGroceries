@@ -31,28 +31,18 @@ const ProductList = () => {
           {products.map((product) => (
             <div key={product._id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 flex flex-col">
               <div className="w-full h-40 bg-gray-200 rounded-md mb-4 flex items-center justify-center">
-
-                {/* <img src='potato.jpeg'></img> */}
-                <img src={product.images[0]} alt={product.name} width={200} />
-              
+                {/* Fixed: Use actual product image or placeholder */}
+                <img src={product.images?.[0] || '/images/placeholder.png'} alt={product.name} className="object-cover w-full h-full" />
               </div>
               <h3 className="text-lg font-semibold text-gray-800">{product.name}</h3>
               <p className="text-gray-600 mt-1">₹{product.price} / {product.unit}</p>
               <p className={`text-sm mt-2 ${product.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {product.stock > 0 ? `In Stock: ${product.stock}` : 'Out of Stock'}
               </p>
-              {/* <button 
-                // CRITICAL FIX: Pass a function to onClick, don't call it directly
-                onClick={() => addToCart(product)} 
-                disabled={product.stock === 0}
-                className="mt-4 w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                Add to Cart
-              </button> */}
               <button
                 onClick={() => addToCart({ ...product, qty: 1 })}
                 disabled={product.stock === 0}
-                className="mt-4 w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="mt-4 w-full bg-brand-green text-white py-2 rounded-lg hover:bg-brand-green-light transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 Add to Cart
               </button>

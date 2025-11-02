@@ -115,8 +115,6 @@ const getOrderById = async (userId, orderId) => {
   return order;
 };
 
-// This function would be used by an admin-only endpoint.
-// We haven't built the corresponding controller/route for it yet.
 /**
  * Updates the status of an order (Admin only).
  * @param {mongoose.Types.ObjectId} orderId - The ID of the order.
@@ -138,12 +136,32 @@ const updateOrderStatusByAdmin = async (orderId, newStatus) => {
         notificationService.sendOrderStatusUpdate(order, order.user);
     }
     
-    // We can return the lean object without the populated user to keep the API response small.
-    const leanOrder = order.toObject();
-    delete leanOrder.user;
-
-    return leanOrder;
+    // Return the full populated order for the admin to see.
+    return order;
 }
+
+/**
+ * Retrieves all orders for administrative view.
+ * @param {Object} queryOptions - Options for filtering, sorting, pagination (optional).
+ * @returns {Promise<Object>} An object containing results, totalResults, etc.
+ */
+const getAllOrdersAdmin = async (queryOptions = {}) => {
+  const filter = {}; // Admins can see all orders initially.
+  const sort = { createdAt: -1 }; // Default sort by newest first.
+
+  // In a real app, you'd add parsing for queryOptions like page, limit, sortBy, status filters.
+  const orders = await Order.find(filter)
+    .populate('user', 'name email phone') // Populate user details (name, email, phone)
+    .populate('items.productId', 'name price unit') // Populate product details within items
+    .sort(sort)
+    .lean(); // Use .lean() for performance when not saving/modifying
+
+  return {
+    results: orders,
+    totalResults: orders.length,
+    // Add pagination info here if queryOptions were processed
+  };
+};
 
 
 export const orderService = {
@@ -151,4 +169,5 @@ export const orderService = {
   getUserOrders,
   getOrderById,
   updateOrderStatusByAdmin,
+  getAllOrdersAdmin, // Export new admin service
 };

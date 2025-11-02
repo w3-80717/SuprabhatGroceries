@@ -3,16 +3,12 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchProducts } from '@/api/products.js';
 import { useCartStore } from '@/store/cartStore.js';
-import { FiChevronRight } from 'react-icons/fi'; // Using an icon library
-
-// You may need to install react-icons: npm install react-icons
-// It's a great, minimal way to get high-quality icons.
+import { FiChevronRight } from 'react-icons/fi';
 
 // --- 1. Hero Section with SVG Wave Divider ---
 const HeroSection = () => (
   <div className="relative bg-brand-green text-white overflow-hidden">
     <div className="container mx-auto px-6 py-20 text-center">
-      {/* Use responsive text sizes */}
       <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight">
         Pure, Simple, Farm-Fresh.
       </h1>
@@ -59,8 +55,9 @@ const FeaturedProducts = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {featured.map(product => (
               <div key={product._id} className="bg-white rounded-xl shadow-lg overflow-hidden group">
-                <div className="w-full h-56 bg-gray-200 relative">
-                  <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-gray-400">Image</span>
+                <div className="w-full h-56 bg-gray-200 relative flex items-center justify-center">
+                  {/* Fixed: Use actual product image or placeholder */}
+                  <img src={product.images?.[0] || '/images/placeholder.png'} alt={product.name} className="object-cover w-full h-full" />
                   <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     <button 
                       onClick={() => addToCart(product)}
@@ -120,9 +117,8 @@ const HomePage = () => {
       <HeroSection />
       <FeaturedProducts />
       <Testimonials />
-      {/* You can add a Footer component here later */}
     </div>
   );
 };
 
-export default HomePage;        
+export default HomePage;

@@ -12,7 +12,6 @@ router.get('/', validate(productValidation.getProductsSchema), productController
 router.get('/:productId', validate(productValidation.productIdSchema), productController.getProductDetails);
 
 // --- Admin Routes ---
-// Note: We've combined the admin routes here. You could also create a separate /api/v1/admin/products router.
 router.post(
   '/admin', // Route: POST /api/v1/products/admin
   authMiddleware,
@@ -31,11 +30,19 @@ router.put(
 
 // Add a new route specifically for admins to get all products
 router.get(
-  '/admin/all',
+  '/admin/all', // Correct route for admin to list all products
   authMiddleware,
   adminMiddleware,
-  productController.listAllProductsForAdmin, // We will create this controller
-   productController.deleteProductById
+  productController.listAllProductsForAdmin
+);
+
+// Add a new route specifically for admins to delete products (soft delete)
+router.delete( // New DELETE route
+  '/admin/:productId', // Route: DELETE /api/v1/products/admin/:productId
+  authMiddleware,
+  adminMiddleware,
+  validate(productValidation.productIdSchema), // Use existing productIdSchema for params validation
+  productController.deleteProductById
 );
 
 export default router;

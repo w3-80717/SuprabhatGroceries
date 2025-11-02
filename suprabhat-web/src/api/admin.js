@@ -19,16 +19,6 @@ apiClient.interceptors.request.use(
 );
 
 /**
- * Fetches all products (including unpublished/out of stock) for the admin view.
- * This is different from the public fetchProducts which only gets available items.
- */
-// export const fetchAllProductsAdmin = async () => {
-//   // Use the public products endpoint but with query params to show all
-//   const response = await apiClient.get('/products?inStock=false&isPublished=all&limit=1000');
-//   return response.data.data;
-// };
-
-/**
  * Creates a new product.
  * @param {Object} productData - The data for the new product.
  */
@@ -52,19 +42,9 @@ export const updateProduct = async ({ productId, updateData }) => {
  * @param {string} productId - The ID of the product to delete.
  */
 export const deleteProduct = async (productId) => {
-  // We need to build this endpoint on the backend.
-  // For now, we "soft delete" by un-publishing.
-  // const response = await apiClient.put(`/products/admin/${productId}`, { isPublished: false });
-  // return response.data.data;
    await apiClient.delete(`/products/admin/${productId}`);
   return productId;
 };
-
-// NEW function to re-publish a product
-export const publishProduct = async (productId) => {
-  const response = await apiClient.put(`/products/admin/${productId}`, { isPublished: true });
-  return response.data.data;
-}
 
 // This function is for toggling the isPublished flag
 export const togglePublishStatus = async ({ productId, isPublished }) => {
@@ -74,5 +54,27 @@ export const togglePublishStatus = async ({ productId, isPublished }) => {
 
 export const fetchAllProductsAdmin = async () => {
   const response = await apiClient.get('/products/admin/all'); // Use the new dedicated route
+  return response.data.data;
+};
+
+// --- NEW ADMIN ORDER API FUNCTIONS ---
+
+/**
+ * Fetches all orders for the admin panel.
+ * @returns {Promise<Object>} An object containing results array and totalResults.
+ */
+export const fetchAllOrdersAdmin = async () => {
+  const response = await apiClient.get('/orders/admin');
+  return response.data.data;
+};
+
+/**
+ * Updates the status of a specific order.
+ * @param {string} orderId - The ID of the order to update.
+ * @param {string} status - The new status (e.g., 'Confirmed', 'Delivered').
+ * @returns {Promise<Object>} The updated order object.
+ */
+export const updateOrderStatus = async ({ orderId, status }) => {
+  const response = await apiClient.put(`/orders/admin/${orderId}/status`, { status });
   return response.data.data;
 };

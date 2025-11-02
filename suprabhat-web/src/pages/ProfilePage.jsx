@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchMyProfile } from '@/api/users.js';
 import { fetchMyOrders } from '@/api/orders.js';
+import { useLocation } from 'react-router-dom'; // Import useLocation
 
 // A component for the user's details
 const MyDetails = ({ profile }) => (
@@ -27,6 +28,18 @@ const OrderHistory = () => {
 
   const orders = data.results;
 
+  // Define status colors for consistency
+  const statusColors = {
+    'Pending': 'bg-yellow-100 text-yellow-800',
+    'Confirmed': 'bg-blue-100 text-blue-800',
+    'Processing': 'bg-indigo-100 text-indigo-800',
+    'Out for Delivery': 'bg-purple-100 text-purple-800',
+    'Delivered': 'bg-green-100 text-green-800',
+    'Cancelled': 'bg-red-100 text-red-800',
+    'Payment Failed': 'bg-gray-100 text-gray-800',
+  };
+
+
   return (
     <div className="bg-white p-6 rounded-lg shadow-sm">
       <h3 className="text-xl font-semibold mb-4">Your Orders</h3>
@@ -38,12 +51,21 @@ const OrderHistory = () => {
             <div key={order._id} className="border p-4 rounded-md">
               <div className="flex justify-between items-center">
                 <p className="font-bold">Order #{order._id.slice(-6)}</p>
-                <span className={`px-2 py-1 text-sm rounded-full ${
-                  order.orderStatus === 'Delivered' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                }`}>{order.orderStatus}</span>
+                <span className={`px-2 py-1 text-sm rounded-full ${statusColors[order.orderStatus] || 'bg-gray-100 text-gray-800'}`}>
+                  {order.orderStatus}
+                </span>
               </div>
               <p className="text-sm text-gray-600">Date: {new Date(order.createdAt).toLocaleDateString()}</p>
               <p className="mt-2 font-semibold">Total: ₹{order.totalAmount.toFixed(2)}</p>
+              <div className="text-sm text-gray-700 mt-2">
+                <p className="font-medium">Items:</p>
+                <ul className="list-disc list-inside">
+                  {order.items.map(item => (
+                    <li key={item._id}>{item.name} (x{item.quantity}) - ₹{item.price.toFixed(2)} each</li>
+                  ))}
+                </ul>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">Delivery Address: {order.deliveryAddress}</p>
             </div>
           ))}
         </div>
@@ -54,7 +76,16 @@ const OrderHistory = () => {
 
 
 const ProfilePage = () => {
+  const location = useLocation(); // Use useLocation hook
   const [activeTab, setActiveTab] = useState('details');
+
+  // Effect to read state from location and set activeTab
+  useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveTab(location.state.activeTab);
+    }
+  }, [location.state]);
+
 
   const { data: profile, isLoading, isError } = useQuery({
     queryKey: ['myProfile'],
@@ -65,20 +96,20 @@ const ProfilePage = () => {
   if (isError) return <div className="text-red-500">Error loading profile. Please try logging in again.</div>;
 
   return (
-    <div>
+    <div className="container mx-auto px-6 py-8"> {/* Added container for consistent styling */}
       <h2 className="text-3xl font-bold text-gray-800 mb-6">Your Profile</h2>
       
       {/* Tabs Navigation */}
       <div className="flex border-b mb-6">
         <button
           onClick={() => setActiveTab('details')}
-          className={`py-2 px-4 font-medium ${activeTab === 'details' ? 'border-b-2 border-green-700 text-green-700' : 'text-gray-500'}`}
+          className={`py-2 px-4 font-medium ${activeTab === 'details' ? 'border-b-2 border-brand-green text-brand-green' : 'text-gray-500'}`}
         >
           My Details
         </button>
         <button
           onClick={() => setActiveTab('orders')}
-          className={`py-2 px-4 font-medium ${activeTab === 'orders' ? 'border-b-2 border-green-700 text-green-700' : 'text-gray-500'}`}
+          className={`py-2 px-4 font-medium ${activeTab === 'orders' ? 'border-b-2 border-brand-green text-brand-green' : 'text-gray-500'}`}
         >
           Order History
         </button>

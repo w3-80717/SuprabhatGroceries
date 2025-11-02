@@ -28,8 +28,30 @@ const getOrderDetails = asyncHandler(async (req, res) => {
     );
 });
 
+// --- Admin Controllers ---
+
+const listAllOrdersForAdmin = asyncHandler(async (req, res) => {
+  // Pass query for potential filtering/pagination in the future
+  const orders = await orderService.getAllOrdersAdmin(req.query); 
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, orders, 'All orders retrieved successfully for admin')
+  );
+});
+
+const updateOrderStatusByAdmin = asyncHandler(async (req, res) => {
+  const { orderId } = req.params;
+  const { status } = req.body; // Expecting { status: 'NewStatus' }
+  const updatedOrder = await orderService.updateOrderStatusByAdmin(orderId, status);
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, updatedOrder, 'Order status updated successfully')
+  );
+});
+
+
 export const orderController = {
   createNewOrder,
   getUserOrders,
-  getOrderDetails
+  getOrderDetails,
+  listAllOrdersForAdmin, // Export new admin controller
+  updateOrderStatusByAdmin, // Export new admin controller
 };

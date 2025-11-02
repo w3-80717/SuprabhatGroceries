@@ -1,8 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
-// The persist middleware will automatically save the store's state
-// to localStorage, so the user stays logged in after a refresh.
+import { useCartStore } from './cartStore'; // Import cartStore
 
 export const useAuthStore = create(
   persist(
@@ -19,6 +17,8 @@ export const useAuthStore = create(
 
       // Action to clear data upon logout
       logout: () => {
+        // --- IMPORTANT FIX: Clear the cart on logout ---
+        useCartStore.getState().clearCart();
         set({ token: null, user: null, isAuthenticated: false });
       },
     }),
