@@ -1,0 +1,1737 @@
+====== ./scripts/seedAdmin.js ======
+// scripts/seedAdmin.js
+
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// --- IMPORTANT ---
+// Since this script is outside the 'src' folder which is configured
+// for ES Modules, we need to adjust the import paths.
+// We also need to specify the file extension `.js`.
+import User from '../src/api/v1/users/user.model.js';
+
+// --- Configuration ---
+// Load environment variables from the root .env file
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
+const MONGODB_URI = process.env.MONGODB_URI;
+
+// --- Admin User Details ---
+// It's best practice to get these from environment variables too,
+// especially the password, but we'll hardcode for simplicity here.
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@suprabhat.com';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'AdminPassword123';
+const ADMIN_NAME = 'Suprabhat Admin';
+
+// --- Main Seeder Function ---
+const seedAdminUser = async () => {
+  if (!MONGODB_URI) {
+    console.error('Error: MONGODB_URI is not defined in your .env file.');
+    process.exit(1);
+  }
+
+  console.log('Connecting to the database...');
+  try {
+    await mongoose.connect(MONGODB_URI);
+    console.log('Database connected successfully.');
+
+    // 1. Check if the admin user already exists
+    const existingAdmin = await User.findOne({ email: ADMIN_EMAIL });
+
+    if (existingAdmin) {
+      console.log(`Admin user with email ${ADMIN_EMAIL} already exists. No action taken.`);
+      return;
+    }
+
+    // 2. If not, create the new admin user
+    console.log('Admin user not found. Creating a new one...');
+
+    // We have to hash the password manually here because we are not using
+    // the 'save' middleware from the User model directly in a way that triggers it.
+    // Creating the user directly is safer. The pre-save hook WILL run with .create()
+    const newUser = {
+      name: ADMIN_NAME,
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASSWORD, // The pre-save hook will hash this
+      role: 'admin',
+    };
+
+    await User.create(newUser);
+
+    console.log('-------------------------------------------');
+    console.log('🎉 Admin user created successfully! 🎉');
+    console.log(`Email: ${ADMIN_EMAIL}`);
+    console.log(`Password: ${ADMIN_PASSWORD}`);
+    console.log('-------------------------------------------');
+
+  } catch (error) {
+    console.error('An error occurred during the seeding process:');
+    console.error(error);
+    process.exit(1);
+  } finally {
+    // 3. Disconnect from the database
+    await mongoose.disconnect();
+    console.log('Database connection closed.');
+  }
+};
+
+// --- Run the Script ---
+seedAdminUser();====== ./tests/integration/auth.test.js ======
+import request from 'supertest';
+import httpStatus from 'http-status';
+import app from '../../src/app.js';
+import User from '../../src/api/v1/users/user.model.js';
+
+describe('Auth Routes', () => {
+  const userCredentials = {
+    name: 'Test User',
+    email: 'test@example.com',
+    password: 'password123',
+  };
+
+  describe('POST /api/v1/auth/register', () => {
+    it('should return 201 CREATED and successfully register a user', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/register')
+        .send(userCredentials)
+        .expect(httpStatus.CREATED);
+
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.user.email).toBe(userCredentials.email);
+      expect(res.body.data.user).not.toHaveProperty('password');
+      expect(res.body.data.token).toBeDefined();
+    });
+
+    it('should return 409 CONFLICT if email is already taken', async () => {
+      await User.create(userCredentials);
+      await request(app)
+        .post('/api/v1/auth/register')
+        .send(userCredentials)
+        .expect(httpStatus.CONFLICT);
+    });
+  });
+
+  describe('POST /api/v1/auth/login', () => {
+    it('should return 200 OK and an access token on successful login', async () => {
+      // Create user first
+      await User.create(userCredentials);
+
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: userCredentials.email, password: userCredentials.password })
+        .expect(httpStatus.OK);
+
+      expect(res.body.data.user.email).toBe(userCredentials.email);
+      expect(res.body.data.token).toBeDefined();
+    });
+
+    it('should return 401 UNAUTHORIZED for incorrect password', async () => {
+      // Create user first
+      await User.create(userCredentials);
+
+      await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: userCredentials.email, password: 'wrongpassword' })
+        .expect(httpStatus.UNAUTHORIZED);
+    });
+  });
+
+  describe('GET /api/v1/users/me', () => {
+    it('should return 401 UNAUTHORIZED if no token is provided', async () => {
+      await request(app)
+        .get('/api/v1/users/me')
+        .expect(httpStatus.UNAUTHORIZED);
+    });
+
+    it('should return 200 OK and user profile if token is valid', async () => {
+      // Create user and then log in to get a valid token
+      await User.create(userCredentials);
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: userCredentials.email, password: userCredentials.password });
+
+      expect(loginRes.body.data.token).toBeDefined(); // Add this check!
+      const token = loginRes.body.data.token;
+
+      const profileRes = await request(app)
+        .get('/api/v1/users/me')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(httpStatus.OK);
+
+      expect(profileRes.body.data.email).toBe(userCredentials.email);
+    });
+  });
+});====== ./tests/integration/order.test.js ======
+import request from 'supertest';
+import httpStatus from 'http-status';
+import mongoose from 'mongoose';
+import { jest, describe, it, expect, beforeEach, afterEach, afterAll } from '@jest/globals';
+import app from '../../src/app.js';
+import Order from '../../src/api/v1/orders/order.model.js';
+import Product from '../../src/api/v1/products/product.model.js';
+import User from '../../src/api/v1/users/user.model.js';
+
+describe('Order Routes', () => {
+  let userToken;
+  let testUser;
+  let productInStock;
+
+  const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+  beforeEach(async () => {
+    // This setup runs before each test, ensuring a clean state.
+    const userCredentials = { name: 'User One', email: 'user.order1@example.com', password: 'password123', phone: 'whatsapp:+919999999991' };
+    testUser = await User.create(userCredentials);
+    let res = await request(app).post('/api/v1/auth/login').send({ email: userCredentials.email, password: userCredentials.password });
+    userToken = res.body.data.token;
+
+    productInStock = await Product.create({ name: 'Test Oranges', description: 'Juicy', price: 100, unit: 'kg', category: 'Fruits', stock: 10 });
+  });
+
+  afterEach(() => {
+    consoleSpy.mockClear();
+  });
+
+  afterAll(() => {
+    consoleSpy.mockRestore();
+  });
+
+  describe('POST /api/v1/orders', () => {
+    it('should create an order successfully and decrement stock', async () => {
+      const orderPayload = {
+        items: [{ productId: productInStock._id.toString(), quantity: 2 }],
+        deliveryAddress: '123 Test Street, Test City',
+      };
+
+      const res = await request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send(orderPayload)
+        .expect(httpStatus.CREATED);
+
+      expect(res.body.data.orderStatus).toBe('Pending');
+      const updatedProduct = await Product.findById(productInStock._id);
+      expect(updatedProduct.stock).toBe(8);
+    });
+
+    it('should trigger notifications on successful order', async () => {
+      // FIX: Used a valid delivery address
+      const orderPayload = { items: [{ productId: productInStock._id.toString(), quantity: 1 }], deliveryAddress: '123 Notification Lane' };
+      
+      await request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send(orderPayload)
+        .expect(httpStatus.CREATED); // Add expect() to ensure it passed
+        
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('--- 📧 Sending Email ---'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining(`To: ${testUser.email}`));
+    });
+
+    it('should return 400 BAD REQUEST for insufficient stock', async () => {
+      const orderPayload = {
+        items: [{ productId: productInStock._id.toString(), quantity: 20 }],
+        deliveryAddress: '123 Out of Stock Avenue',
+      };
+
+      await request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send(orderPayload)
+        .expect(httpStatus.BAD_REQUEST);
+    });
+  });
+
+  describe('GET /api/v1/orders', () => {
+    it("should return 200 OK and the user's own orders", async () => {
+      await request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ items: [{ productId: productInStock._id.toString(), quantity: 1 }], deliveryAddress: '123 My Order Street' })
+        .expect(httpStatus.CREATED); // Ensure the order was actually created
+
+      const res = await request(app)
+        .get('/api/v1/orders')
+        .set('Authorization', `Bearer ${userToken}`)
+        .expect(httpStatus.OK);
+        
+      expect(res.body.data.results.length).toBe(1);
+      expect(res.body.data.results[0].user.toString()).toBe(testUser._id.toString());
+    });
+  });
+  
+  describe('GET /api/v1/orders/:orderId', () => {
+    it("should allow a user to get their own order details", async () => {
+      const orderRes = await request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ items: [{ productId: productInStock._id.toString(), quantity: 1 }], deliveryAddress: '123 My Detail Street' })
+        .expect(httpStatus.CREATED); // Ensure the order was created
+
+      const orderId = orderRes.body.data._id;
+      expect(orderId).toBeDefined();
+
+      const res = await request(app)
+        .get(`/api/v1/orders/${orderId}`)
+        .set('Authorization', `Bearer ${userToken}`)
+        .expect(httpStatus.OK);
+
+      expect(res.body.data._id).toBe(orderId);
+    });
+
+    it("should FORBID a user from getting another user's order details", async () => {
+      const orderRes = await request(app)
+        .post('/api/v1/orders')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ items: [{ productId: productInStock._id.toString(), quantity: 1 }], deliveryAddress: '123 Secret Order Way' })
+        .expect(httpStatus.CREATED);
+      
+      const orderId = orderRes.body.data._id;
+      expect(orderId).toBeDefined();
+
+      const userTwoCredentials = { name: 'User Two', email: 'user.order2@example.com', password: 'password123' };
+      await User.create(userTwoCredentials);
+      const loginRes = await request(app).post('/api/v1/auth/login').send({ email: userTwoCredentials.email, password: userTwoCredentials.password });
+      const userTwoToken = loginRes.body.data.token;
+
+      await request(app)
+        .get(`/api/v1/orders/${orderId}`)
+        .set('Authorization', `Bearer ${userTwoToken}`) 
+        .expect(httpStatus.FORBIDDEN);
+    });
+  });
+});====== ./tests/integration/product.test.js ======
+import request from 'supertest';
+import httpStatus from 'http-status';
+import mongoose from 'mongoose';
+import app from '../../src/app.js';
+import Product from '../../src/api/v1/products/product.model.js';
+import User from '../../src/api/v1/users/user.model.js';
+
+describe('Product Routes', () => {
+  let adminToken, userToken;
+
+  const adminCredentials = { name: 'Admin User', email: 'admin.product@example.com', password: 'password123', role: 'admin' };
+  const userCredentials = { name: 'Regular User', email: 'user.product@example.com', password: 'password123' };
+
+  const productOne = { name: 'Fresh Apples', description: 'Crisp and juicy red apples.', price: 150, unit: 'kg', category: 'Fruits', stock: 50 };
+  const productTwo = { name: 'Organic Spinach', description: 'Fresh leafy greens.', price: 80, unit: 'bunch', category: 'Vegetables', stock: 30 };
+
+  beforeEach(async () => {
+    // Re-create users and get fresh tokens before EVERY test
+    await User.create(adminCredentials);
+    await User.create(userCredentials);
+
+    let res = await request(app).post('/api/v1/auth/login').send({ email: adminCredentials.email, password: adminCredentials.password });
+    adminToken = res.body.data.token;
+
+    res = await request(app).post('/api/v1/auth/login').send({ email: userCredentials.email, password: userCredentials.password });
+    userToken = res.body.data.token;
+
+    // Handle products
+    await Product.deleteMany({});
+    await Product.create([productOne, productTwo]);
+  });
+
+  describe('POST /api/v1/products/admin', () => {
+    const newProduct = { name: 'Sweet Bananas', description: 'Ripe and sweet.', price: 60, unit: 'dozen', category: 'Fruits', stock: 100 };
+
+    it('should return 201 CREATED and create a product if user is admin', async () => {
+      const res = await request(app).post('/api/v1/products/admin').set('Authorization', `Bearer ${adminToken}`).send(newProduct).expect(httpStatus.CREATED);
+      expect(res.body.data.name).toBe(newProduct.name);
+    });
+
+    it('should return 403 FORBIDDEN if user is not admin', async () => {
+      await request(app).post('/api/v1/products/admin').set('Authorization', `Bearer ${userToken}`).send(newProduct).expect(httpStatus.FORBIDDEN);
+    });
+
+    it('should return 401 UNAUTHORIZED if no token is provided', async () => {
+      await request(app).post('/api/v1/products/admin').send(newProduct).expect(httpStatus.UNAUTHORIZED);
+    });
+  });
+
+  describe('GET /api/v1/products', () => {
+    it('should return 200 OK and a list of all products', async () => {
+      const res = await request(app).get('/api/v1/products').expect(httpStatus.OK);
+      expect(res.body.data.results).toBeInstanceOf(Array);
+      expect(res.body.data.results.length).toBe(2);
+    });
+
+    it('should correctly filter products by category', async () => {
+      const res = await request(app).get('/api/v1/products?category=Fruits').expect(httpStatus.OK);
+      expect(res.body.data.results.length).toBe(1);
+      expect(res.body.data.results[0].name).toBe('Fresh Apples');
+    });
+
+    it('should correctly paginate results', async () => {
+      // THIS IS THE FIX: Added sortBy=name:asc to make the test deterministic
+      const res = await request(app)
+        .get('/api/v1/products?sortBy=name:asc&limit=1&page=2')
+        .expect(httpStatus.OK);
+      
+      expect(res.body.data.results.length).toBe(1);
+      expect(Number(res.body.data.page)).toBe(2);
+      // Page 1 is 'Fresh Apples', so Page 2 must be 'Organic Spinach'
+      expect(res.body.data.results[0].name).toBe('Organic Spinach');
+    });
+
+    it('should correctly sort products by price in ascending order', async () => {
+      const res = await request(app).get('/api/v1/products?sortBy=price:asc').expect(httpStatus.OK);
+      expect(res.body.data.results[0].name).toBe('Organic Spinach');
+      expect(res.body.data.results[1].name).toBe('Fresh Apples');
+    });
+  });
+
+  describe('GET /api/v1/products/:productId', () => {
+    it('should return 200 OK and the product details if ID is valid', async () => {
+      const product = await Product.findOne({ name: 'Fresh Apples' });
+      const res = await request(app).get(`/api/v1/products/${product._id}`).expect(httpStatus.OK);
+      expect(res.body.data.name).toBe(product.name);
+    });
+
+    it('should return 404 NOT FOUND if product does not exist', async () => {
+      const nonExistentId = new mongoose.Types.ObjectId();
+      await request(app).get(`/api/v1/products/${nonExistentId}`).expect(httpStatus.NOT_FOUND);
+    });
+  });
+
+  describe('PUT /api/v1/products/admin/:productId', () => {
+    let productToUpdate;
+
+    beforeEach(async () => {
+      productToUpdate = await Product.findOne({ name: 'Fresh Apples' });
+    });
+
+    it('should return 200 OK and update the product if user is admin', async () => {
+      const updatePayload = { price: 160, stock: 45 };
+      const res = await request(app).put(`/api/v1/products/admin/${productToUpdate._id}`).set('Authorization', `Bearer ${adminToken}`).send(updatePayload).expect(httpStatus.OK);
+      expect(res.body.data.price).toBe(160);
+    });
+
+    it('should return 403 FORBIDDEN if user is not admin', async () => {
+      await request(app).put(`/api/v1/products/admin/${productToUpdate._id}`).set('Authorization', `Bearer ${userToken}`).send({ price: 170 }).expect(httpStatus.FORBIDDEN);
+    });
+
+    it('should return 404 NOT FOUND if product ID does not exist', async () => {
+      const nonExistentId = new mongoose.Types.ObjectId();
+      await request(app).put(`/api/v1/products/admin/${nonExistentId}`).set('Authorization', `Bearer ${adminToken}`).send({ price: 170 }).expect(httpStatus.NOT_FOUND);
+    });
+
+    it('should return 400 BAD REQUEST if update body is invalid (e.g., empty)', async () => {
+      await request(app).put(`/api/v1/products/admin/${productToUpdate._id}`).set('Authorization', `Bearer ${adminToken}`).send({}).expect(httpStatus.BAD_REQUEST);
+    });
+  });
+});====== ./tests/setup.js ======
+// File: tests/setup.js
+
+import mongoose from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import dotenv from 'dotenv';
+
+dotenv.config({ path: '.env' });
+
+let mongoServer;
+
+const mongooseOpts = {
+  // Options for Mongoose 6+
+  serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+  socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+};
+
+beforeAll(async () => {
+  mongoServer = await MongoMemoryServer.create();
+  const mongoUri = mongoServer.getUri();
+
+  await mongoose.connect(mongoUri, mongooseOpts);
+});
+
+afterAll(async () => {
+  await mongoose.disconnect();
+  await mongoServer.stop();
+});
+
+afterEach(async () => {
+  const collections = mongoose.connection.collections;
+  for (const key in collections) {
+    const collection = collections[key];
+    await collection.deleteMany();
+  }
+});====== ./src/config/database.js ======
+import mongoose from 'mongoose';
+import config from './index.js';
+
+const connectDB = async () => {
+  try {
+    const connectionInstance = await mongoose.connect(config.mongodbUri);
+    console.log(`\n☘️  MongoDB Connected! DB HOST: ${connectionInstance.connection.host}`);
+  } catch (error) {
+    console.error('MongoDB connection FAILED', error);
+    process.exit(1);
+  }
+};
+
+export default connectDB;====== ./src/config/index.js ======
+import dotenv from 'dotenv';
+import path from 'path';
+
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
+const config = {
+  port: process.env.PORT || 8000,
+  mongodbUri: process.env.MONGODB_URI,
+  jwt: {
+    secret: process.env.JWT_SECRET,
+    accessExpiration: process.env.JWT_ACCESS_TOKEN_EXPIRATION,
+  },
+  corsOrigin: process.env.CORS_ORIGIN,
+};
+
+export default config;====== ./src/middlewares/error.middleware.js ======
+import { ApiError } from '../utils/ApiError.js';
+import httpStatus from 'http-status';
+
+const errorMiddleware = (err, req, res, next) => {
+  let statusCode = err.statusCode || httpStatus.INTERNAL_SERVER_ERROR;
+  let message = err.message || 'Internal Server Error';
+
+  if (!(err instanceof ApiError)) {
+    // Convert other errors to ApiError
+    // For example, Zod validation errors
+    if (err.name === 'ZodError') {
+      statusCode = httpStatus.BAD_REQUEST;
+      message = 'Validation failed';
+      const errors = err.errors.map(e => ({ path: e.path.join('.'), message: e.message }));
+      return res.status(statusCode).json({
+        success: false,
+        message,
+        errors,
+      });
+    }
+    
+    // Log the error for debugging non-ApiError types
+    console.error(err);
+  }
+
+  res.status(statusCode).json({
+    success: false,
+    message: message,
+    errors: err.errors || [],
+  });
+};
+
+export { errorMiddleware };====== ./src/middlewares/admin.middleware.js ======
+import httpStatus from 'http-status';
+import { ApiError } from '../utils/ApiError.js';
+
+// This middleware must run AFTER authMiddleware
+export const adminMiddleware = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    return next();
+  }
+  throw new ApiError(httpStatus.FORBIDDEN, 'Forbidden: Access is restricted to administrators.');
+};====== ./src/middlewares/auth.middleware.js ======
+import jwt from 'jsonwebtoken';
+import httpStatus from 'http-status';
+import { ApiError } from '../utils/ApiError.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+import config from '../config/index.js';
+import User from '../api/v1/users/user.model.js';
+
+export const authMiddleware = asyncHandler(async (req, res, next) => {
+  const token = req.header('Authorization')?.replace('Bearer ', '');
+
+  if (!token) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Access token is missing');
+  }
+
+  try {
+    const decoded = jwt.verify(token, config.jwt.secret);
+    const user = await User.findById(decoded._id);
+
+    if (!user) {
+      throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid access token');
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid or expired token');
+  }
+});====== ./src/middlewares/validate.middleware.js ======
+import httpStatus from 'http-status';
+import { ApiError } from '../utils/ApiError.js';
+
+// Middleware factory for Zod validation
+const validate = (schema) => (req, res, next) => {
+  try {
+    schema.parse({
+      body: req.body,
+      query: req.query,
+      params: req.params,
+    });
+    next();
+  } catch (error) {
+    // ZodError will be caught by the global error handler
+    next(error);
+  }
+};
+
+export default validate;====== ./src/app.js ======
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import config from './config/index.js';
+import { errorMiddleware } from './middlewares/error.middleware.js';
+import apiV1Router from './api/v1/index.js';
+
+const app = express();
+
+// Middlewares
+app.use(cors({ origin: config.corsOrigin, credentials: true }));
+app.use(helmet());
+app.use(express.json({ limit: '16kb' }));
+app.use(express.urlencoded({ extended: true, limit: '16kb' }));
+app.use(morgan('dev')); // Logger
+
+// API Routes
+app.get('/healthcheck', (req, res) => res.status(200).send('OK'));
+app.use('/api/v1', apiV1Router);
+
+// Global Error Handler Middleware
+app.use(errorMiddleware);
+
+export default app;====== ./src/utils/ApiResponse.js ======
+class ApiResponse {
+  constructor(statusCode, data, message = 'Success') {
+    this.statusCode = statusCode;
+    this.data = data;
+    this.message = message;
+    this.success = statusCode < 400;
+  }
+}
+
+export { ApiResponse };====== ./src/utils/ApiError.js ======
+class ApiError extends Error {
+  constructor(
+    statusCode,
+    message = 'Something went wrong',
+    errors = [],
+    stack = ''
+  ) {
+    super(message);
+    this.statusCode = statusCode;
+    this.data = null;
+    this.message = message;
+    this.success = false;
+    this.errors = errors;
+
+    if (stack) {
+      this.stack = stack;
+    } else {
+      Error.captureStackTrace(this, this.constructor);
+    }
+  }
+}
+
+export { ApiError };====== ./src/utils/asyncHandler.js ======
+// A wrapper to avoid writing try-catch blocks in every controller
+const asyncHandler = (requestHandler) => {
+  return (req, res, next) => {
+    Promise.resolve(requestHandler(req, res, next)).catch((err) => next(err));
+  };
+};
+
+export { asyncHandler };====== ./src/services/whatsapp.service.js ======
+// In a real application, you'd use the Twilio, Meta, or another provider's SDK.
+// We will create a stub that logs to the console.
+
+/**
+ * Sends a WhatsApp message.
+ * @param {string} to - The recipient's phone number (e.g., 'whatsapp:+919876543210').
+ * @param {string} body - The message content.
+ * @returns {Promise<void>}
+ */
+const sendWhatsAppMessage = async (to, body) => {
+  console.log('--- 📱 Sending WhatsApp Message ---');
+  console.log(`To: ${to}`);
+  console.log(`Body: ${body}`);
+  console.log('---------------------------------');
+
+  // In a real implementation:
+  // const client = twilio(config.twilio.sid, config.twilio.authToken);
+  // await client.messages.create({ from: config.twilio.from, body, to });
+  
+  return Promise.resolve();
+};
+
+export const whatsAppService = {
+  sendWhatsAppMessage,
+};====== ./src/services/email.service.js ======
+// In a real application, you would use a library like nodemailer or an SDK from your email provider.
+// For now, we will create a stub that logs to the console.
+
+/**
+ * Sends an email.
+ * @param {string} to - The recipient's email address.
+ * @param {string} subject - The subject of the email.
+ * @param {string} html - The HTML body of the email.
+ * @returns {Promise<void>}
+ */
+const sendEmail = async (to, subject, html) => {
+  console.log('--- 📧 Sending Email ---');
+  console.log(`To: ${to}`);
+  console.log(`Subject: ${subject}`);
+  console.log('Body:');
+  console.log(html);
+  console.log('----------------------');
+  
+  // In a real implementation, you'd have:
+  // const transport = nodemailer.createTransport(...);
+  // await transport.sendMail({ from: config.email.from, to, subject, html });
+  
+  // Simulate a successful send
+  return Promise.resolve();
+};
+
+export const emailService = {
+  sendEmail,
+};====== ./src/services/notification.service.js ======
+import { emailService } from './email.service.js';
+import { whatsAppService } from './whatsapp.service.js';
+
+// --- Template Generators ---
+// These functions create the content for our messages.
+
+const generateOrderConfirmationHtml = (order, user) => {
+  const itemsHtml = order.items.map(item => 
+    `<li>${item.name} (x${item.quantity}) - ₹${item.price.toFixed(2)} each</li>`
+  ).join('');
+
+  return `
+    <h1>Thank you for your order, ${user.name}!</h1>
+    <p>Your order #${order._id} has been confirmed.</p>
+    <h3>Order Summary:</h3>
+    <ul>${itemsHtml}</ul>
+    <p><strong>Subtotal:</strong> ₹${order.subTotal.toFixed(2)}</p>
+    <p><strong>Delivery Fee:</strong> ₹${order.deliveryFee.toFixed(2)}</p>
+    <p><strong>Total:</strong> ₹${order.totalAmount.toFixed(2)}</p>
+    <p>It will be delivered to: ${order.deliveryAddress}</p>
+    <p>Thank you for shopping with Suprabhat!</p>
+  `;
+};
+
+const generateOrderStatusUpdateText = (order, user) => {
+  return `Hi ${user.name}, your Suprabhat order #${order._id.toString().slice(-6)} status has been updated to: *${order.orderStatus}*.`;
+};
+
+
+// --- Main Notification Functions ---
+
+/**
+ * Sends an order confirmation notification via Email and WhatsApp.
+ * @param {Order} order - The full order object.
+ * @param {User} user - The user object, containing email and phone.
+ */
+const sendOrderConfirmation = async (order, user) => {
+  // Fire and forget: We don't want to block the user's request if a notification fails.
+  // In a production app, this is where you'd use a message queue (e.g., RabbitMQ, SQS).
+  
+  // Send Email
+  emailService.sendEmail(
+    user.email,
+    `Suprabhat Order Confirmed: #${order._id}`,
+    generateOrderConfirmationHtml(order, user)
+  ).catch(err => console.error('Failed to send confirmation email:', err));
+
+  // Send WhatsApp (assuming user.phone exists and is formatted correctly)
+  if (user.phone) {
+    const message = `Thank you for your order, ${user.name}! Your Suprabhat order #${order._id.toString().slice(-6)} for ₹${order.totalAmount.toFixed(2)} is confirmed. We'll notify you when it's on its way.`;
+    whatsAppService.sendWhatsAppMessage(user.phone, message)
+      .catch(err => console.error('Failed to send confirmation WhatsApp:', err));
+  }
+};
+
+/**
+ * Sends a notification when an order's status is updated.
+ * @param {Order} order - The full order object.
+ * @param {User} user - The user object.
+ */
+const sendOrderStatusUpdate = async (order, user) => {
+  // Here, we might choose to only send a WhatsApp for quick updates.
+  if (user.phone) {
+    const message = generateOrderStatusUpdateText(order, user);
+    whatsAppService.sendWhatsAppMessage(user.phone, message)
+      .catch(err => console.error('Failed to send status update WhatsApp:', err));
+  }
+};
+
+
+export const notificationService = {
+  sendOrderConfirmation,
+  sendOrderStatusUpdate,
+};====== ./src/index.js ======
+import app from './app.js';
+import config from './config/index.js';
+import connectDB from './config/database.js';
+
+connectDB()
+  .then(() => {
+    app.listen(config.port, () => {
+      console.log(`🚀 Server is running at http://localhost:${config.port}`);
+    });
+  })
+  .catch((err) => {
+    console.log('MONGO db connection failed !!! ', err);
+  });====== ./src/api/v1/orders/.gitkeep ======
+====== ./src/api/v1/orders/order.model.js ======
+// File: src/api/v1/orders/order.model.js
+
+import mongoose from 'mongoose';
+
+const orderItemSchema = new mongoose.Schema({
+  productId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Product',
+    required: true,
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: 1,
+  },
+  // Store price at the time of order to prevent changes if product price updates
+  price: {
+    type: Number,
+    required: true,
+  },
+  name: {
+    type: String,
+    required: true,
+  },
+});
+
+const orderSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    items: [orderItemSchema],
+    totalAmount: {
+      type: Number,
+      required: true,
+    },
+    subTotal: {
+        type: Number,
+        required: true,
+    },
+    deliveryFee: {
+        type: Number,
+        required: true,
+    },
+    deliveryAddress: {
+      type: String,
+      required: true,
+    },
+    orderStatus: {
+      type: String,
+      enum: ['Pending', 'Confirmed', 'Processing', 'Out for Delivery', 'Delivered', 'Cancelled', 'Payment Failed'],
+      default: 'Pending',
+    },
+    paymentDetails: {
+      id: String,
+      status: String,
+      method: String,
+    },
+  },
+  { timestamps: true }
+);
+
+const Order = mongoose.model('Order', orderSchema);
+
+export default Order;====== ./src/api/v1/orders/order.routes.js ======
+// File: src/api/v1/orders/order.routes.js
+
+import { Router } from 'express';
+import { orderController } from './order.controller.js';
+import validate from '../../../middlewares/validate.middleware.js';
+import { authMiddleware } from '../../../middlewares/auth.middleware.js';
+import { orderValidation } from './order.validation.js';
+
+const router = Router();
+
+// All order routes are protected
+router.use(authMiddleware);
+
+router
+  .route('/')
+  .post(validate(orderValidation.createOrderSchema), orderController.createNewOrder)
+  .get(orderController.getUserOrders);
+
+router
+    .route('/:orderId')
+    .get(validate(orderValidation.getOrderSchema), orderController.getOrderDetails);
+
+export default router;====== ./src/api/v1/orders/order.service.js ======
+// File: src/api/v1/orders/order.service.js
+
+import mongoose from 'mongoose';
+import httpStatus from 'http-status';
+import Order from './order.model.js';
+import { productService } from '../products/product.service.js';
+import { ApiError } from '../../../utils/ApiError.js';
+import { notificationService } from '../../../services/notification.service.js';
+import Product from '../products/product.model.js';
+
+/**
+ * Creates a new order. This function is transactional.
+ * @param {User} user - The user object placing the order.
+ * @param {Object} orderData - The raw order data from the request body.
+ * @returns {Promise<Order>} The created order.
+ */
+const createOrder = async (user, orderData) => {
+  const { items, deliveryAddress } = orderData;
+  const deliveryFee = 50; // Hardcoded for now
+
+  // Conditionally start a transaction. In 'test' mode, we won't.
+  const session = process.env.NODE_ENV !== 'test'
+    ? await mongoose.startSession()
+    : null;
+
+  try {
+    // Start the transaction if a session exists
+    if (session) {
+      session.startTransaction();
+    }
+
+    let subTotal = 0;
+    const orderItems = [];
+    const productStockUpdates = [];
+
+    for (const item of items) {
+      // Pass the session to findById if it exists
+      const product = await Product.findById(item.productId).session(session || null);
+
+      if (!product) {
+        throw new ApiError(httpStatus.NOT_FOUND, `Product with ID ${item.productId} not found.`);
+      }
+
+      if (product.stock < item.quantity) {
+        throw new ApiError(httpStatus.BAD_REQUEST, `Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}.`);
+      }
+
+      orderItems.push({ productId: product._id, name: product.name, quantity: item.quantity, price: product.price });
+      subTotal += product.price * item.quantity;
+      productStockUpdates.push({ updateOne: { filter: { _id: product._id }, update: { $inc: { stock: -item.quantity } } } });
+    }
+
+    // Pass the session to bulkWrite if it exists
+    await Product.bulkWrite(productStockUpdates, { session: session || null });
+
+    const totalAmount = subTotal + deliveryFee;
+    const orderToCreate = { user: user._id, items: orderItems, totalAmount, subTotal, deliveryFee, deliveryAddress, orderStatus: 'Pending' };
+
+    // Pass the session to create if it exists
+    const createdOrderArray = await Order.create([orderToCreate], { session: session || null });
+    const createdOrder = createdOrderArray[0];
+
+    // Commit the transaction if a session exists
+    if (session) {
+      await session.commitTransaction();
+      session.endSession();
+    }
+
+    notificationService.sendOrderConfirmation(createdOrder, user);
+
+    return createdOrder;
+
+  } catch (error) {
+    // Abort the transaction if a session exists and an error occurred
+    if (session) {
+      await session.abortTransaction();
+      session.endSession();
+    }
+    throw error;
+  }
+};
+
+/**
+ * Retrieves all orders for a specific user.
+ * @param {mongoose.Types.ObjectId} userId - The ID of the user.
+ * @returns {Promise<Array<Order>>} A list of the user's orders.
+ */
+const getUserOrders = async (userId) => {
+  // Sort by newest first
+  const orders = await Order.find({ user: userId }).sort({ createdAt: -1 });
+  return {
+      results: orders,
+      totalResults: orders.length
+  };
+};
+
+/**
+ * Retrieves a single order by its ID, ensuring it belongs to the requesting user.
+ * @param {mongoose.Types.ObjectId} userId - The ID of the user making the request.
+ * @param {mongoose.Types.ObjectId} orderId - The ID of the order to retrieve.
+ * @returns {Promise<Order>} The order object.
+ */
+const getOrderById = async (userId, orderId) => {
+  const order = await Order.findById(orderId);
+
+  if (!order) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Order not found.');
+  }
+
+  // Security check: Ensure the user requesting the order is the one who owns it.
+  if (order.user.toString() !== userId.toString()) {
+    throw new ApiError(httpStatus.FORBIDDEN, "You don't have permission to view this order.");
+  }
+
+  return order;
+};
+
+// This function would be used by an admin-only endpoint.
+// We haven't built the corresponding controller/route for it yet.
+/**
+ * Updates the status of an order (Admin only).
+ * @param {mongoose.Types.ObjectId} orderId - The ID of the order.
+ * @param {string} newStatus - The new status to set.
+ * @returns {Promise<Order>} The updated order.
+ */
+const updateOrderStatusByAdmin = async (orderId, newStatus) => {
+    // We use .populate('user') to get the user's details for sending a notification.
+    const order = await Order.findById(orderId).populate('user');
+    if(!order) {
+        throw new ApiError(httpStatus.NOT_FOUND, 'Order not found');
+    }
+
+    order.orderStatus = newStatus;
+    await order.save();
+    
+    // Trigger a notification for the user about the status update.
+    if (order.user) {
+        notificationService.sendOrderStatusUpdate(order, order.user);
+    }
+    
+    // We can return the lean object without the populated user to keep the API response small.
+    const leanOrder = order.toObject();
+    delete leanOrder.user;
+
+    return leanOrder;
+}
+
+
+export const orderService = {
+  createOrder,
+  getUserOrders,
+  getOrderById,
+  updateOrderStatusByAdmin,
+};====== ./src/api/v1/orders/order.controller.js ======
+// File: src/api/v1/orders/order.controller.js
+
+import httpStatus from 'http-status';
+import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { ApiResponse } from '../../../utils/ApiResponse.js';
+import { orderService } from './order.service.js';
+
+const createNewOrder = asyncHandler(async (req, res) => {
+  const user = req.user;
+  const orderData = req.body;
+  const order = await orderService.createOrder(user, orderData);
+  res.status(httpStatus.CREATED).json(
+    new ApiResponse(httpStatus.CREATED, order, 'Order created successfully')
+  );
+});
+
+const getUserOrders = asyncHandler(async (req, res) => {
+    const orders = await orderService.getUserOrders(req.user._id);
+    res.status(httpStatus.OK).json(
+        new ApiResponse(httpStatus.OK, orders, "Orders retrieved successfully")
+    );
+});
+
+const getOrderDetails = asyncHandler(async (req, res) => {
+    const order = await orderService.getOrderById(req.user._id, req.params.orderId);
+    res.status(httpStatus.OK).json(
+        new ApiResponse(httpStatus.OK, order, "Order details retrieved successfully")
+    );
+});
+
+export const orderController = {
+  createNewOrder,
+  getUserOrders,
+  getOrderDetails
+};====== ./src/api/v1/orders/order.validation.js ======
+// File: src/api/v1/orders/order.validation.js
+
+import { z } from 'zod';
+import mongoose from 'mongoose';
+
+const objectIdSchema = z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
+  message: 'Invalid ID format',
+});
+
+const createOrderSchema = z.object({
+  body: z.object({
+    items: z
+      .array(
+        z.object({
+          productId: objectIdSchema,
+          quantity: z.number().int().positive(),
+        })
+      )
+      .nonempty('Order must contain at least one item'),
+    deliveryAddress: z.string().min(10, 'Delivery address is required'),
+    // paymentMethod could be added here
+  }),
+});
+
+const getOrderSchema = z.object({
+    params: z.object({
+        orderId: objectIdSchema,
+    }),
+});
+
+export const orderValidation = {
+  createOrderSchema,
+  getOrderSchema,
+};====== ./src/api/v1/auth/auth.validation.js ======
+import { z } from 'zod';
+
+const registerSchema = z.object({
+  body: z.object({
+    name: z.string().min(2, 'Name is required'),
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(8, 'Password must be at least 8 characters long'),
+      phone: z.string().optional(), // Make it optional for now
+  }),
+});
+
+const loginSchema = z.object({
+  body: z.object({
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(1, 'Password is required'),
+  }),
+});
+
+export const authValidation = {
+  registerSchema,
+  loginSchema,
+};====== ./src/api/v1/auth/auth.controller.js ======
+import httpStatus from 'http-status';
+import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { ApiResponse } from '../../../utils/ApiResponse.js';
+import { authService } from './auth.service.js';
+
+const register = asyncHandler(async (req, res) => {
+  const { user, token } = await authService.registerUser(req.body);
+  res.status(httpStatus.CREATED).json(
+    new ApiResponse(httpStatus.CREATED, { user, token }, 'User registered successfully')
+  );
+});
+
+const login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+  const { user, token } = await authService.loginUser(email, password);
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, { user, token }, 'Login successful')
+  );
+});
+
+export const authController = {
+  register,
+  login,
+};====== ./src/api/v1/auth/auth.routes.js ======
+import { Router } from 'express';
+import { authController } from './auth.controller.js';
+import validate from '../../../middlewares/validate.middleware.js';
+import { authValidation } from './auth.validation.js';
+
+const router = Router();
+
+router.post('/register', validate(authValidation.registerSchema), authController.register);
+router.post('/login', validate(authValidation.loginSchema), authController.login);
+
+export default router;====== ./src/api/v1/auth/auth.service.js ======
+import httpStatus from 'http-status';
+import User from '../users/user.model.js';
+import { ApiError } from '../../../utils/ApiError.js';
+
+/**
+ * Register a new user
+ * @param {Object} userData
+ * @returns {Promise<Object>}
+ */
+const registerUser = async (userData) => {
+  if (await User.findOne({ email: userData.email })) {
+    throw new ApiError(httpStatus.CONFLICT, 'User with this email already exists.');
+  }
+  
+  const user = await User.create(userData);
+  const token = user.generateAccessToken();
+
+  return { user, token };
+};
+
+/**
+ * Login a user
+ * @param {string} email
+ * @param {string} password
+ * @returns {Promise<Object>}
+ */
+const loginUser = async (email, password) => {
+  const user = await User.findOne({ email }).select('+password');
+  if (!user || !(await user.isPasswordCorrect(password))) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Incorrect email or password');
+  }
+  
+  const token = user.generateAccessToken();
+  
+  // Convert to object to remove password before returning
+  const userObject = user.toObject();
+  delete userObject.password;
+
+  return { user: userObject, token };
+};
+
+export const authService = {
+  registerUser,
+  loginUser,
+};====== ./src/api/v1/index.js ======
+// File: src/api/v1/index.js
+
+import { Router } from 'express';
+import authRoutes from './auth/auth.routes.js';
+import userRoutes from './users/user.routes.js';
+import productRoutes from './products/product.routes.js';
+import orderRoutes from './orders/order.routes.js'; // <-- ADD THIS LINE
+
+const router = Router();
+
+router.use('/auth', authRoutes);
+router.use('/users', userRoutes);
+router.use('/products', productRoutes);
+router.use('/orders', orderRoutes); // <-- ADD THIS LINE
+
+export default router;====== ./src/api/v1/products/product.model.js ======
+import mongoose from 'mongoose';
+
+const productSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    unit: {
+      type: String,
+      required: true,
+      enum: ['kg', 'piece', 'bunch', 'dozen'],
+      default: 'kg',
+    },
+    category: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
+    stock: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+    images: [{
+      type: String, // URLs to images
+    }],
+    // Fields from SRS to highlight USPs
+    sourcingDetails: {
+      type: String,
+      trim: true,
+    },
+    freshnessTag: {
+      type: String, // e.g., "Picked Today", "Farm-fresh"
+      trim: true,
+    },
+    isPublished: {
+      type: Boolean,
+      default: true,
+    },
+    //  isDeleted: {
+    //   type: Boolean,
+    //   default: false,
+    //   index: true, // Index this for faster queries
+    // },
+      // --- ADD THIS FIELD ---
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true, 
+    },  
+  },
+  { timestamps: true }
+);
+
+// Create a text index for searching
+productSchema.index({ name: 'text', description: 'text', category: 'text' });
+// --- NEW METHOD ---
+// This ensures that normal find queries automatically filter out deleted products.
+productSchema.pre(/^find/, function(next) {
+  // `this` is the query
+  this.where({ isDeleted: { $ne: true } });
+  next();
+});
+
+const Product = mongoose.model('Product', productSchema);
+
+export default Product;====== ./src/api/v1/products/product.routes.js ======
+import { Router } from 'express';
+import { productController } from './product.controller.js';
+import validate from '../../../middlewares/validate.middleware.js';
+import { productValidation } from './product.validation.js';
+import { authMiddleware } from '../../../middlewares/auth.middleware.js';
+import { adminMiddleware } from '../../../middlewares/admin.middleware.js';
+
+const router = Router();
+
+// --- Public Routes ---
+router.get('/', validate(productValidation.getProductsSchema), productController.listProducts);
+router.get('/:productId', validate(productValidation.productIdSchema), productController.getProductDetails);
+
+// --- Admin Routes ---
+// Note: We've combined the admin routes here. You could also create a separate /api/v1/admin/products router.
+router.post(
+  '/admin', // Route: POST /api/v1/products/admin
+  authMiddleware,
+  adminMiddleware,
+  validate(productValidation.createProductSchema),
+  productController.createProductByAdmin
+);
+
+router.put(
+  '/admin/:productId', // Route: PUT /api/v1/products/admin/:productId
+  authMiddleware,
+  adminMiddleware,
+  validate(productValidation.updateProductSchema),
+  productController.updateProductByAdmin
+);
+
+// Add a new route specifically for admins to get all products
+router.get(
+  '/admin/all',
+  authMiddleware,
+  adminMiddleware,
+  productController.listAllProductsForAdmin, // We will create this controller
+   productController.deleteProductById
+);
+
+export default router;====== ./src/api/v1/products/product.service.js ======
+import mongoose from 'mongoose';
+import httpStatus from 'http-status';
+import Product from './product.model.js';
+import { ApiError } from '../../../utils/ApiError.js';
+
+/**
+ * Get a list of products with filtering, sorting, and pagination
+ * @param {Object} options
+ * @returns {Promise<Object>}
+ */
+const getProducts = async (options) => {
+  // const { filter, sortOptions, paginationOptions } = buildQueryOptions(options);
+  const { filter, sortOptions, paginationOptions } = buildPublicQueryOptions(options);
+  const products = await Product.find(filter).sort(sortOptions).skip(paginationOptions.skip).limit(paginationOptions.limit).lean();
+  const totalProducts = await Product.countDocuments(filter);
+  return { results: products, page: paginationOptions.page, limit: paginationOptions.limit, totalPages: Math.ceil(totalProducts / paginationOptions.limit), totalResults: totalProducts };
+};
+
+/**
+ * Get a single product by its ID
+ * @param {mongoose.Types.ObjectId} productId
+ * @returns {Promise<Product>}
+ */
+const getProductById = async (productId) => {
+  const product = await Product.findOne({ _id: productId, isPublished: true, isDeleted: false });
+  if (!product) throw new ApiError(httpStatus.NOT_FOUND, 'Product not found');
+  return product;
+};
+
+
+
+/**
+ * Create a new product (Admin only)
+ * @param {Object} productData
+ * @returns {Promise<Product>}
+ */
+
+const createProduct = async (productData) => {
+  return await Product.create(productData);
+};
+
+/**
+ * Update a product by its ID (Admin only)
+ * @param {mongoose.Types.ObjectId} productId
+ * @param {Object} updateData
+ * @returns {Promise<Product>}
+ */
+const updateProduct = async (productId, updateData) => {
+  const product = await Product.findByIdAndUpdate(productId, updateData, { new: true });
+  if (!product) throw new ApiError(httpStatus.NOT_FOUND, 'Product not found');
+  return product;
+};
+
+
+// Helper function to construct query options from request queries
+const buildPublicQueryOptions = (options) => {
+  const { category, sortBy, priceMin, priceMax, page, limit, searchQuery } = options;
+
+  // This filter is for the public view and is VERY STRICT.
+  const filter = {
+    isPublished: true,
+    isDeleted: false,
+    stock: { $gt: 0 },
+  };
+
+  if (category) filter.category = category;
+  if (priceMin || priceMax) {
+    filter.price = {};
+    if (priceMin) filter.price.$gte = priceMin;
+    if (priceMax) filter.price.$lte = priceMax;
+  }
+  if (searchQuery) filter.$text = { $search: searchQuery };
+
+  const sortOptions = sortBy ? { [sortBy.split(':')[0]]: sortBy.split(':')[1] === 'desc' ? -1 : 1 } : { createdAt: -1 };
+  const paginationOptions = { limit: parseInt(limit, 10) || 10, page: parseInt(page, 10) || 1 };
+  paginationOptions.skip = (paginationOptions.page - 1) * paginationOptions.limit;
+
+  return { filter, sortOptions, paginationOptions };
+};
+
+
+const getAllProductsAdmin = async () => {
+  // Admin sees EVERYTHING, including deleted items.
+  const allProducts = await mongoose.model('Product').find({}).sort({ createdAt: -1 });
+  return { results: allProducts, totalResults: allProducts.length };
+};
+
+// --- NEW SERVICE FUNCTION ---
+const deleteProductById = async (productId) => {
+  const product = await Product.findByIdAndUpdate(productId, { isDeleted: true, isPublished: false }, { new: true });
+  if (!product) throw new ApiError(httpStatus.NOT_FOUND, 'Product not found');
+  return product;
+};
+
+export const productService = {
+  getProducts,
+  getProductById,
+  createProduct,
+  updateProduct,
+  getAllProductsAdmin,
+  deleteProductById,
+};====== ./src/api/v1/products/product.validation.js ======
+import { z } from 'zod';
+import mongoose from 'mongoose';
+
+const createProductSchema = z.object({
+  body: z.object({
+    name: z.string().min(1, 'Name is required'),
+    description: z.string().min(1, 'Description is required'),
+    price: z.number().positive('Price must be a positive number'),
+    unit: z.enum(['kg', 'piece', 'bunch', 'dozen']),
+    category: z.string().min(1, 'Category is required'),
+    stock: z.number().int().nonnegative('Stock must be a non-negative integer'),
+    images: z.array(z.string().url()).optional(),
+    sourcingDetails: z.string().optional(),
+    freshnessTag: z.string().optional(),
+  }),
+});
+
+const getProductsSchema = z.object({
+  query: z.object({
+    category: z.string().optional(),
+    sortBy: z.string().optional(), // e.g., 'price:asc', 'createdAt:desc'
+    priceMin: z.coerce.number().optional(),
+    priceMax: z.coerce.number().optional(),
+    page: z.coerce.number().int().positive().default(1),
+    limit: z.coerce.number().int().positive().default(10),
+    searchQuery: z.string().optional(),
+    inStock: z.enum(['true', 'false']).optional(),
+  }),
+});
+
+const productIdSchema = z.object({
+  params: z.object({
+    productId: z
+      .string()
+      .refine((val) => mongoose.Types.ObjectId.isValid(val), { message: 'Invalid Product ID' }),
+  }),
+});
+
+const updateProductSchema = z.object({
+  params: productIdSchema.shape.params,
+  body: z
+    .object({
+      name: z.string().min(1).optional(),
+      description: z.string().min(1).optional(),
+      price: z.number().positive().optional(),
+      unit: z.enum(['kg', 'piece', 'bunch', 'dozen']).optional(),
+      category: z.string().min(1).optional(),
+      stock: z.number().int().nonnegative().optional(),
+      images: z.array(z.string().url()).optional(),
+      sourcingDetails: z.string().optional(),
+      freshnessTag: z.string().optional(),
+      isPublished: z.boolean().optional(),
+    })
+    .refine((data) => Object.keys(data).length > 0, {
+      message: 'Update body cannot be empty',
+    }),
+});
+
+export const productValidation = {
+  createProductSchema,
+  getProductsSchema,
+  productIdSchema,
+  updateProductSchema,
+};====== ./src/api/v1/products/product.controller.js ======
+import httpStatus from 'http-status';
+import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { ApiResponse } from '../../../utils/ApiResponse.js';
+import { productService } from './product.service.js';
+
+// PUBLIC CONTROLLERS
+
+const listProducts = asyncHandler(async (req, res) => {
+  const products = await productService.getProducts(req.query);
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, products, 'Products retrieved successfully')
+  );
+});
+
+const getProductDetails = asyncHandler(async (req, res) => {
+  const product = await productService.getProductById(req.params.productId);
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, product, 'Product details retrieved successfully')
+  );
+});
+
+// ADMIN CONTROLLERS
+
+const createProductByAdmin = asyncHandler(async (req, res) => {
+  const product = await productService.createProduct(req.body);
+  res.status(httpStatus.CREATED).json(
+    new ApiResponse(httpStatus.CREATED, product, 'Product created successfully')
+  );
+});
+
+const updateProductByAdmin = asyncHandler(async (req, res) => {
+  const product = await productService.updateProduct(req.params.productId, req.body);
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, product, 'Product updated successfully')
+  );
+});
+
+// Add this new controller function
+const listAllProductsForAdmin = asyncHandler(async (req, res) => {
+  const products = await productService.getAllProductsAdmin(); // New service function
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, products, 'All products retrieved for admin')
+  );
+});
+
+// Add a new controller function
+const deleteProductById = asyncHandler(async (req, res) => {
+  await productService.deleteProductById(req.params.productId);
+  res.status(httpStatus.NO_CONTENT).send();
+});
+
+export const productController = {
+  listProducts,
+  getProductDetails,
+  createProductByAdmin,
+  updateProductByAdmin,
+  listAllProductsForAdmin,
+  deleteProductById,
+};====== ./src/api/v1/users/user.controller.js ======
+import httpStatus from 'http-status';
+import { asyncHandler } from '../../../utils/asyncHandler.js';
+import { ApiResponse } from '../../../utils/ApiResponse.js';
+import { userService } from './user.service.js';
+
+const getMyProfile = asyncHandler(async (req, res) => {
+  // The user object is attached by the authMiddleware
+  const user = await userService.getUserById(req.user._id);
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, user, 'User profile fetched successfully')
+  );
+});
+
+export const userController = {
+  getMyProfile,
+};====== ./src/api/v1/users/user.service.js ======
+import httpStatus from 'http-status';
+import User from './user.model.js';
+import { ApiError } from '../../../utils/ApiError.js';
+
+/**
+ * Get user by ID
+ * @param {mongoose.Types.ObjectId} userId
+ * @returns {Promise<User>}
+ */
+const getUserById = async (userId) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+  return user;
+};
+
+export const userService = {
+  getUserById,
+};====== ./src/api/v1/users/user.model.js ======
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import config from '../../../config/index.js';
+
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      match: [/\S+@\S+\.\S+/, 'is invalid'],
+    },
+    // phone: { type: String, unique: true, sparse: true }, // Uncomment if you use phone
+    password: {
+      type: String,
+      required: [true, 'Password is required'],
+      minlength: 8,
+      select: false, // Do not return password by default
+    },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
+    },
+      phone: {
+      type: String,
+      // You can add unique, sparse, and validation as needed
+      // e.g., match: [/^\+91[1-9][0-9]{9}$/, 'is invalid']
+    },
+    // Other fields from SRS
+    addresses: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Address' // A separate model for addresses is better practice
+    }]
+  },
+  { timestamps: true }
+);
+
+// Hash password before saving
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next();
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
+
+// Method to check if password is correct
+userSchema.methods.isPasswordCorrect = async function (password) {
+  return await bcrypt.compare(password, this.password);
+};
+
+// Method to generate JWT
+userSchema.methods.generateAccessToken = function () {
+  return jwt.sign(
+    {
+      _id: this._id,
+      email: this.email,
+      role: this.role,
+    },
+    config.jwt.secret,
+    { expiresIn: config.jwt.accessExpiration }
+  );
+};
+
+// Method to remove password from the returned object
+userSchema.methods.toJSON = function() {
+  const user = this.toObject();
+  delete user.password;
+  return user;
+}
+
+
+const User = mongoose.model('User', userSchema);
+export default User;====== ./src/api/v1/users/user.routes.js ======
+import { Router } from 'express';
+import { userController } from './user.controller.js';
+import { authMiddleware } from '../../../middlewares/auth.middleware.js';
+
+const router = Router();
+
+// This route is protected
+router.get('/me', authMiddleware, userController.getMyProfile);
+
+export default router;====== ./package.json ======
+{
+  "name": "suprabhat-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Backend for Suprabhat Fruit and Vegetable Shop",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --verbose",
+    "db:seed:admin": "node scripts/seedAdmin.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "http-status": "^1.7.3",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.3",
+    "morgan": "^1.10.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "mongodb-memory-server": "^9.1.3",
+    "nodemon": "^3.0.2",
+    "supertest": "^6.3.3"
+  }
+}====== ./.gitignore ======
+====== ./jest.config.cjs ======
+module.exports = {
+  testEnvironment: 'node',
+  setupFilesAfterEnv: ['./tests/setup.js'],
+  testTimeout: 30000,
+};
+
+this is my all files from above to below i sent you i want 2 part admin side and user side in admin side shows the order status of users on cart or admin side

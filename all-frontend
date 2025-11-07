@@ -1,0 +1,1643 @@
+====== ./README.md ======
+# React + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+====== ./vite.config.js ======
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// This is the standard ES Module way to get __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  
+  // 1. Development Server Configuration
+  server: {
+    // Configure the proxy for API requests
+    proxy: {
+      // Any request starting with /api will be forwarded
+      '/api': {
+        // Your backend server running on port 8000
+        target: 'http://localhost:8000',
+        
+        // Needed for virtual-hosted sites and to avoid CORS issues
+        changeOrigin: true,
+        
+        // You can uncomment this if you need to remove the /api prefix
+        // before the request is sent to your backend. We don't need it
+        // for our current backend setup.
+        // rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
+  },
+
+  // 2. Path Alias Configuration
+  resolve: {
+    alias: {
+      // This allows you to use `import Something from '@/components/Something'`
+      // instead of complex relative paths like `../../components/Something`
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+});====== ./src/pages/CartPage.jsx ======
+// ...existing code...
+import React from 'react';
+import { useCartStore } from '@/store/cartStore.js';
+
+//const placeholderImage = '/images/placeholder.png'; // put a fallback image in public/images or change to external URL
+
+
+
+const CartPage = () => {
+  const {
+    items = [],
+    removeFromCart,
+    incrementQuantity,
+    decrementQuantity,
+    getTotalPrice
+  } = useCartStore();
+
+  // fallback total calculation if store doesn't provide getTotalPrice
+  const totalPrice = (typeof getTotalPrice === 'function')
+    ? getTotalPrice()
+    : items.reduce((sum, it) => sum + ((it.product?.price || 0) * (it.quantity || 0)), 0);
+
+  return (
+    <div className="container mx-auto px-6 py-8">
+      <h2 className="text-3xl font-bold text-gray-800 mb-6">Your Shopping Cart</h2>
+
+      {items.length === 0 ? (
+        <div className="bg-white p-6 rounded-lg shadow-sm">
+          <p className="text-gray-500">Your cart is currently empty.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Cart Items List */}
+          <div className="lg:col-span-2 space-y-4">
+            {items.map(({ product, quantity }) => (
+              <div
+                key={product._id ?? product.id}
+                className="bg-white p-4 rounded-lg shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+              >
+                {/* Product Info */}
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-gray-200 rounded-md overflow-hidden flex items-center justify-center">
+                    <img src={product.images[0]} alt={product.name} width={200} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">{product?.name}</h3>
+                    <p className="text-gray-600">₹{(product?.price ?? 0).toFixed(2)}</p>
+                    {product?.unit && <p className="text-sm text-gray-500">/ {product.unit}</p>}
+                  </div>
+                </div>
+
+                {/* Quantity and Remove */}
+                <div className="flex items-center gap-4 self-end sm:self-center">
+                  <div className="flex items-center border rounded">
+                    <button
+                      onClick={() => decrementQuantity?.(product._id ?? product.id)}
+                      className="px-3 py-1"
+                      aria-label="Decrease quantity"
+                    >
+                      -
+                    </button>
+                    <span className="px-4">{quantity}</span>
+                    <button
+                      onClick={() => incrementQuantity?.(product._id ?? product.id)}
+                      className="px-3 py-1"
+                      aria-label="Increase quantity"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => removeFromCart?.(product._id ?? product.id)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Order Summary */}
+          <div className="lg:col-span-1">
+            <div className="bg-white p-6 rounded-lg shadow-sm sticky top-24">
+              <h3 className="text-xl font-semibold mb-4">Order Summary</h3>
+              <div className="flex justify-between mb-2">
+                <span>Subtotal</span>
+                <span>₹{totalPrice.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between mb-4">
+                <span>Delivery Fee</span>
+                <span>₹50.00</span>
+              </div>
+              <div className="border-t pt-4 flex justify-between font-bold text-lg">
+                <span>Total</span>
+                <span>₹{(totalPrice + 50).toFixed(2)}</span>
+              </div>
+              <button className="mt-6 w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition-colors">
+                Proceed to Checkout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CartPage;====== ./src/pages/Login.jsx ======
+import React from 'react';
+
+const LoginPage = () => {
+  return (
+    <div>
+      <h2>Login or Sign Up</h2>
+      <p>Login functionality will be implemented here.</p>
+    </div>
+  );
+};
+
+export default LoginPage;====== ./src/pages/ProductsPage.jsx ======
+import React from 'react';
+import ProductList from '@/components/ProductList';
+
+const ProductsPage = () => {
+  return (
+    <div className="container mx-auto px-6 py-8">
+      <h2 className="text-3xl font-bold text-gray-800 mb-6">Featured Products</h2>
+       <h2 className="text-3xl font-bold text-gray-800 mb-6">All Products</h2>
+      <p className="text-gray-600 mb-8">Browse our hand-picked selection of the freshest fruits and vegetables.</p>
+      <ProductList />
+    </div>
+  );
+};
+
+export default ProductsPage;====== ./src/pages/ProfilePage.jsx ======
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchMyProfile } from '@/api/users.js';
+import { fetchMyOrders } from '@/api/orders.js';
+
+// A component for the user's details
+const MyDetails = ({ profile }) => (
+  <div className="bg-white p-6 rounded-lg shadow-sm">
+    <h3 className="text-xl font-semibold mb-4">Account Details</h3>
+    <div className="space-y-2">
+      <p><strong>Name:</strong> {profile.name}</p>
+      <p><strong>Email:</strong> {profile.email}</p>
+      <p><strong>Joined:</strong> {new Date(profile.createdAt).toLocaleDateString()}</p>
+    </div>
+  </div>
+);
+
+// A component for the user's order history
+const OrderHistory = () => {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['myOrders'],
+    queryFn: fetchMyOrders,
+  });
+
+  if (isLoading) return <p>Loading order history...</p>;
+  if (isError) return <p className="text-red-500">Could not fetch order history.</p>;
+
+  const orders = data.results;
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow-sm">
+      <h3 className="text-xl font-semibold mb-4">Your Orders</h3>
+      {orders.length === 0 ? (
+        <p>You haven't placed any orders yet.</p>
+      ) : (
+        <div className="space-y-4">
+          {orders.map(order => (
+            <div key={order._id} className="border p-4 rounded-md">
+              <div className="flex justify-between items-center">
+                <p className="font-bold">Order #{order._id.slice(-6)}</p>
+                <span className={`px-2 py-1 text-sm rounded-full ${
+                  order.orderStatus === 'Delivered' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                }`}>{order.orderStatus}</span>
+              </div>
+              <p className="text-sm text-gray-600">Date: {new Date(order.createdAt).toLocaleDateString()}</p>
+              <p className="mt-2 font-semibold">Total: ₹{order.totalAmount.toFixed(2)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+const ProfilePage = () => {
+  const [activeTab, setActiveTab] = useState('details');
+
+  const { data: profile, isLoading, isError } = useQuery({
+    queryKey: ['myProfile'],
+    queryFn: fetchMyProfile,
+  });
+
+  if (isLoading) return <div>Loading profile...</div>;
+  if (isError) return <div className="text-red-500">Error loading profile. Please try logging in again.</div>;
+
+  return (
+    <div>
+      <h2 className="text-3xl font-bold text-gray-800 mb-6">Your Profile</h2>
+      
+      {/* Tabs Navigation */}
+      <div className="flex border-b mb-6">
+        <button
+          onClick={() => setActiveTab('details')}
+          className={`py-2 px-4 font-medium ${activeTab === 'details' ? 'border-b-2 border-green-700 text-green-700' : 'text-gray-500'}`}
+        >
+          My Details
+        </button>
+        <button
+          onClick={() => setActiveTab('orders')}
+          className={`py-2 px-4 font-medium ${activeTab === 'orders' ? 'border-b-2 border-green-700 text-green-700' : 'text-gray-500'}`}
+        >
+          Order History
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      <div>
+        {activeTab === 'details' && <MyDetails profile={profile} />}
+        {activeTab === 'orders' && <OrderHistory />}
+      </div>
+    </div>
+  );
+};
+
+export default ProfilePage;====== ./src/pages/admin/ProductManagementPage.jsx ======
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { fetchAllProductsAdmin, createProduct, updateProduct, deleteProduct, togglePublishStatus } from '@/api/admin.js';
+import Modal from '@/components/Modal.jsx';
+import ProductForm from '@/components/ProductForm.jsx';
+import { FiEdit, FiTrash2, FiPlusCircle, FiEye, FiEyeOff } from 'react-icons/fi';
+
+const ProductManagementPage = () => {
+  const queryClient = useQueryClient();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['allAdminProducts'],
+    queryFn: fetchAllProductsAdmin,
+  });
+
+  const mutationOptions = {
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allAdminProducts'] });
+      setIsModalOpen(false);
+      setEditingProduct(null);
+    },
+  };
+
+  const createMutation = useMutation({ ...mutationOptions, mutationFn: createProduct });
+  const updateMutation = useMutation({ ...mutationOptions, mutationFn: updateProduct });
+  const deleteMutation = useMutation({ ...mutationOptions, mutationFn: deleteProduct });
+  const publishMutation = useMutation({ ...mutationOptions, mutationFn: togglePublishStatus });
+
+  const handleFormSubmit = (formData) => {
+    if (editingProduct) {
+      updateMutation.mutate({ productId: editingProduct._id, updateData: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+  
+  const handleDelete = (productId) => {
+    if (window.confirm('Are you sure you want to delete this product? It will be hidden from users but can be recovered later.')) {
+      deleteMutation.mutate(productId);
+    }
+  };
+
+  const handleTogglePublish = (product) => {
+    publishMutation.mutate({ productId: product._id, isPublished: !product.isPublished });
+  };
+
+  const openAddModal = () => {
+    setEditingProduct(null);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (product) => {
+    setEditingProduct(product);
+    setIsModalOpen(true);
+  };
+
+  if (isLoading) return <div className="text-center p-10">Loading Products...</div>;
+  if (isError) return <div className="text-center p-10 text-red-500">Error fetching products.</div>;
+
+  const products = data?.results || [];
+
+  return (
+    <div className="container mx-auto px-6 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-3xl font-bold text-gray-800">Product Management</h2>
+        <button onClick={openAddModal} className="bg-brand-green hover:bg-brand-green-light text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+          <FiPlusCircle /> Add New Product
+        </button>
+      </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingProduct ? 'Edit Product' : 'Add New Product'}>
+        <ProductForm product={editingProduct} onSubmit={handleFormSubmit} isLoading={createMutation.isLoading || updateMutation.isLoading} onCancel={() => setIsModalOpen(false)} />
+      </Modal>
+
+      <div className="bg-white shadow-md rounded-lg overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {products.map(product => (
+              <tr key={product._id} className={`hover:bg-gray-50 ${product.isDeleted ? 'opacity-40 bg-red-50' : ''}`}>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="font-medium text-gray-900">{product.name}</div>
+                  <div className="text-sm text-gray-500">₹{product.price} / {product.unit}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.stock}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  {product.isDeleted ? (
+                     <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-200 text-gray-800">Deleted</span>
+                  ) : (
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${product.isPublished ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                      {product.isPublished ? 'Published' : 'Unpublished'}
+                    </span>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
+                  {!product.isDeleted && (
+                    <>
+                      <button onClick={() => handleTogglePublish(product)} className={product.isPublished ? 'text-yellow-500 hover:text-yellow-700' : 'text-green-500 hover:text-green-700'} title={product.isPublished ? 'Unpublish' : 'Publish'}>
+                        {product.isPublished ? <FiEyeOff /> : <FiEye />}
+                      </button>
+                      <button onClick={() => openEditModal(product)} className="text-indigo-600 hover:text-indigo-900" title="Edit">
+                        <FiEdit />
+                      </button>
+                    </>
+                  )}
+                  <button onClick={() => handleDelete(product._id)} className="text-red-600 hover:text-red-900" title="Delete">
+                    <FiTrash2 />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+export default ProductManagementPage;====== ./src/pages/AboutPage.jsx ======
+import React from 'react';
+
+const AboutPage = () => {
+  return (
+    <div>
+      <h2 className="text-3xl font-bold text-gray-800 mb-6">About Suprabhat</h2>
+      <div className="bg-white p-8 rounded-lg shadow-sm space-y-4 text-gray-700">
+        <p>
+          Welcome to Suprabhat Fruit and Vegetable Shop! We are a hyper-local, community-focused shop dedicated to bringing you the freshest produce available.
+        </p>
+        <p>
+          Our mission is to replace impersonal, large-scale grocery shopping with a personalized service that you can trust. We believe in quality over quantity, and our curated selection reflects that. Many of our items are sourced directly from local farms, and we often feature "picked today" specials to guarantee absolute freshness.
+        </p>
+        <h3 className="text-xl font-semibold pt-4">Our Promise</h3>
+        <ul className="list-disc list-inside space-y-2">
+          <li><strong>Freshness Guarantee:</strong> We stand by the quality of our produce.</li>
+          <li><strong>Curated Quality:</strong> Every item is hand-selected by our team.</li>
+          <li><strong>Personalized Service:</strong> We're your friendly neighborhood shop, now online!</li>
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+export default AboutPage;====== ./src/pages/ContactPage.jsx ======
+import React from 'react';
+import { FiMail, FiPhone, FiMapPin } from 'react-icons/fi';
+
+const ContactPage = () => {
+  return (
+    <div className="container mx-auto px-6 py-12">
+      <div className="text-center">
+        <h2 className="text-4xl font-bold text-brand-green">Get In Touch</h2>
+        <p className="text-lg text-gray-600 mt-2">
+          We'd love to hear from you! Whether you have a question about our products, our service, or anything else, our team is ready to answer all your questions.
+        </p>
+      </div>
+
+      <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
+        {/* Contact Info Section */}
+        <div className="bg-white p-8 rounded-lg shadow-md space-y-6">
+          <h3 className="text-2xl font-semibold text-brand-text">Contact Information</h3>
+          <div className="flex items-start space-x-4">
+            <FiMapPin className="text-brand-accent text-2xl mt-1" />
+            <div>
+              <h4 className="font-bold">Our Location</h4>
+              <p className="text-gray-600">Pune, Maharashtra, India</p>
+            </div>
+          </div>
+          <div className="flex items-start space-x-4">
+            <FiMail className="text-brand-accent text-2xl mt-1" />
+            <div>
+              <h4 className="font-bold">Email Us</h4>
+              <a href="mailto:suprabhat.fresh@example.com" className="text-gray-600 hover:text-brand-green">suprabhat.fresh@example.com</a>
+            </div>
+          </div>
+          <div className="flex items-start space-x-4">
+            <FiPhone className="text-brand-accent text-2xl mt-1" />
+            <div>
+              <h4 className="font-bold">Call Us</h4>
+              <p className="text-gray-600">+91 98765 43210</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Contact Form Section */}
+        <div className="bg-white p-8 rounded-lg shadow-md">
+          <h3 className="text-2xl font-semibold text-brand-text mb-6">Send us a Message</h3>
+          <form className="space-y-4">
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700">Full Name</label>
+              <input type="text" id="name" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500" />
+            </div>
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email Address</label>
+              <input type="email" id="email" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500" />
+            </div>
+            <div>
+              <label htmlFor="message" className="block text-sm font-medium text-gray-700">Message</label>
+              <textarea id="message" rows="4" className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"></textarea>
+            </div>
+            <button
+              type="submit"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-brand-accent hover:bg-orange-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+            >
+              Send Message
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ContactPage;====== ./src/pages/AuthPage.jsx ======
+import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useMutation } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { loginUser, registerUser } from '@/api/auth';
+import { useAuthStore } from '@/store/authStore';
+
+// Zod validation schemas
+const registerSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+const loginSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+const AuthPage = () => {
+  const [isLogin, setIsLogin] = useState(true);
+  const navigate = useNavigate();
+  const { login: loginToStore } = useAuthStore(); // Get the login action from the store
+
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    resolver: zodResolver(isLogin ? loginSchema : registerSchema),
+  });
+
+  const { mutate: handleRegister, isLoading: isRegistering, error: registerError } = useMutation({
+    mutationFn: registerUser,
+    onSuccess: (data) => {
+      loginToStore(data); // Save user and token to store
+      navigate('/'); // Redirect to home on success
+    },
+  });
+
+  const { mutate: handleLogin, isLoading: isLoggingIn, error: loginError } = useMutation({
+    mutationFn: loginUser,
+    onSuccess: (data) => {
+      loginToStore(data);
+      navigate('/');
+    },
+  });
+
+  const onSubmit = (data) => {
+    if (isLogin) {
+      handleLogin(data);
+    } else {
+      handleRegister(data);
+    }
+  };
+
+  const isLoading = isLoggingIn || isRegistering;
+  const serverError = loginError || registerError;
+
+  return (
+    <div style={{ maxWidth: '400px', margin: '2rem auto', padding: '2rem', border: '1px solid #ccc', borderRadius: '8px' }}>
+      <h2 style={{fontSize:'20px', fontWeight:'bold'}}>{isLogin ? 'Login' : 'Create Account'}</h2>
+      <form onSubmit={handleSubmit(onSubmit)}>
+        {!isLogin && (
+          <div style={{ marginBottom: '1rem' }}>
+            <label>Name</label>
+            <input {...register('name')} style={{ width: '100%', padding: '8px' }} />
+            {errors.name && <p style={{ color: 'red' }}>{errors.name.message}</p>}
+          </div>
+        )}
+        <div style={{ marginBottom: '1rem' }}>
+          <label>Email</label>
+          <input {...register('email')} style={{ width: '100%', padding: '8px' }} />
+          {errors.email && <p style={{ color: 'red' }}>{errors.email.message}</p>}
+        </div>
+        <div style={{ marginBottom: '1rem' }}>
+          <label>Password</label>
+          <input type="password" {...register('password')} style={{ width: '100%', padding: '8px' }} />
+          {errors.password && <p style={{ color: 'red' }}>{errors.password.message}</p>}
+        </div>
+
+        {serverError && <p style={{ color: 'red', marginBottom: '1rem' }}>{serverError.response?.data?.message || 'An error occurred'}</p>}
+        
+        <button type="submit" disabled={isLoading} style={{ width: '100%', padding: '10px', backgroundColor: '#2c5e1a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+          {isLoading ? 'Processing...' : (isLogin ? 'Login' : 'Register')}
+        </button>
+      </form>
+      <p style={{ marginTop: '1rem', textAlign: 'center' }}>
+        {isLogin ? "Don't have an account?" : 'Already have an account?'}
+        <button onClick={() => setIsLogin(!isLogin)} style={{ background: 'none', border: 'none', color: '#2c5e1a', cursor: 'pointer', textDecoration: 'underline' }}>
+          {isLogin ? 'Register' : 'Login'}
+        </button>
+      </p>
+    </div>
+  );
+};
+
+export default AuthPage;====== ./src/pages/HomePage.jsx ======
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { fetchProducts } from '@/api/products.js';
+import { useCartStore } from '@/store/cartStore.js';
+import { FiChevronRight } from 'react-icons/fi'; // Using an icon library
+
+// You may need to install react-icons: npm install react-icons
+// It's a great, minimal way to get high-quality icons.
+
+// --- 1. Hero Section with SVG Wave Divider ---
+const HeroSection = () => (
+  <div className="relative bg-brand-green text-white overflow-hidden">
+    <div className="container mx-auto px-6 py-20 text-center">
+      {/* Use responsive text sizes */}
+      <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-tight">
+        Pure, Simple, Farm-Fresh.
+      </h1>
+      <p className="mt-4 text-lg md:text-xl text-green-100 max-w-2xl mx-auto">
+        Experience the true taste of nature with produce sourced from local farms and delivered with care.
+      </p>
+      <Link 
+        to="/products"
+        className="mt-10 inline-flex items-center gap-2 bg-brand-accent text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:bg-orange-500 transition-all duration-300 transform hover:scale-105"
+      >
+        Explore Our Products <FiChevronRight />
+      </Link>
+    </div>
+    {/* SVG Wave Divider for a soft, organic transition */}
+    <div className="absolute bottom-[-8vw] left-0 w-full">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320">
+        <path fill="#f5f5dc" fillOpacity="1" d="M0,192L48,176C96,160,192,128,288,133.3C384,139,480,181,576,186.7C672,192,768,160,864,133.3C960,107,1056,85,1152,96C1248,107,1344,149,1392,170.7L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+      </svg>
+    </div>
+  </div>
+);
+
+// --- 2. Redesigned Featured Products ---
+const FeaturedProducts = () => {
+  const { addToCart } = useCartStore();
+  const { data, isLoading } = useQuery({
+    queryKey: ['products'],
+    queryFn: fetchProducts,
+  });
+
+  const featured = data?.results?.slice(0, 4) || [];
+
+  return (
+    <div className="bg-brand-beige py-20">
+      <div className="container mx-auto px-6">
+        <div className="text-center mb-12">
+          <h2 className="text-4xl font-bold text-brand-green">Our Freshest Picks</h2>
+          <p className="text-lg text-gray-600 mt-2">Hand-selected for you, from our farm to your table.</p>
+        </div>
+        
+        {isLoading ? (
+          <div className="text-center">Loading...</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {featured.map(product => (
+              <div key={product._id} className="bg-white rounded-xl shadow-lg overflow-hidden group">
+                <div className="w-full h-56 bg-gray-200 relative">
+                  <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-gray-400">Image</span>
+                  <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <button 
+                      onClick={() => addToCart(product)}
+                      className="bg-brand-accent text-white font-bold py-2 px-6 rounded-full transform scale-90 group-hover:scale-100 transition-transform"
+                    >
+                      Add to Cart
+                    </button>
+                  </div>
+                </div>
+                <div className="p-5 text-center">
+                  <h3 className="text-xl font-semibold text-brand-text">{product.name}</h3>
+                  <p className="text-brand-green-light font-medium mt-1">₹{product.price} / {product.unit}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// --- 3. Redesigned Testimonials ---
+const Testimonials = () => (
+  <div className="bg-white py-20">
+    <div className="container mx-auto px-6">
+      <div className="text-center mb-12">
+        <h2 className="text-4xl font-bold text-brand-green">Loved by Our Community</h2>
+        <p className="text-lg text-gray-600 mt-2">Real stories from our happy customers.</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Testimonial Cards with Avatars */}
+        <div className="bg-brand-beige p-8 rounded-xl shadow-sm text-center">
+          <img src="https://i.pravatar.cc/100?u=a" alt="Anjali P." className="w-20 h-20 rounded-full mx-auto -mt-16 border-4 border-white shadow-lg" />
+          <p className="text-brand-text italic mt-6">"The quality is just incredible. My salads have never tasted better! Truly a game-changer for my family's health."</p>
+          <p className="mt-4 font-bold text-brand-green-light">- Anjali P.</p>
+        </div>
+        <div className="bg-brand-beige p-8 rounded-xl shadow-sm text-center">
+          <img src="https://i.pravatar.cc/100?u=b" alt="Rohan M." className="w-20 h-20 rounded-full mx-auto -mt-16 border-4 border-white shadow-lg" />
+          <p className="text-brand-text italic mt-6">"Reliable, fresh, and always delivered with a smile. Suprabhat has become an essential part of my weekly routine."</p>
+          <p className="mt-4 font-bold text-brand-green-light">- Rohan M.</p>
+        </div>
+        <div className="bg-brand-beige p-8 rounded-xl shadow-sm text-center">
+          <img src="https://i.pravatar.cc/100?u=c" alt="Priya K." className="w-20 h-20 rounded-full mx-auto -mt-16 border-4 border-white shadow-lg" />
+          <p className="text-brand-text italic mt-6">"Finally, a place that values quality over everything. You can feel the passion they have for providing the best produce."</p>
+          <p className="mt-4 font-bold text-brand-green-light">- Priya K.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+// --- Main HomePage Component ---
+const HomePage = () => {
+  return (
+    <div>
+      <HeroSection />
+      <FeaturedProducts />
+      <Testimonials />
+      {/* You can add a Footer component here later */}
+    </div>
+  );
+};
+
+export default HomePage;        ====== ./src/components/Modal.jsx ======
+import React from 'react';
+import { FiX } from 'react-icons/fi';
+
+const Modal = ({ isOpen, onClose, title, children }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl">
+        <div className="p-4 border-b flex justify-between items-center">
+          <h3 className="text-xl font-semibold text-brand-text">{title}</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-800">
+            <FiX size={24} />
+          </button>
+        </div>
+        <div className="p-6">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+export default Modal;====== ./src/components/LoadingSpinner.jsx ======
+// Example: LoadingSpinner.jsx
+import React from 'react';
+
+const LoadingSpinner = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+    <div className="spinner" />
+    <style>
+      {`
+        .spinner {
+          border: 4px solid #f3f3f3;
+          border-top: 4px solid #3498db;
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg);}
+          100% { transform: rotate(360deg);}
+        }
+      `}
+    </style>
+  </div>
+);
+
+export default LoadingSpinner;====== ./src/components/ProductList.jsx ======
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchProducts } from '@/api/products.js'; // Using absolute path alias
+import { useCartStore } from '@/store/cartStore.js'; // Import the cart store
+
+const ProductList = () => {
+  // Get the addToCart action from our Zustand store
+  const { addToCart } = useCartStore();
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['products'],
+    queryFn: fetchProducts,
+  });
+
+  if (isLoading) {
+    return <div className="text-center p-10">Loading products...</div>;
+  }
+
+  if (isError) {
+    return <div className="text-center p-10 text-red-500">Error fetching products: {error.message}</div>;
+  }
+
+  const products = data?.results || [];
+
+  return (
+    <div>
+      {products.length === 0 ? (
+        <p className="text-center p-10">No products found.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {products.map((product) => (
+            <div key={product._id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 flex flex-col">
+              <div className="w-full h-40 bg-gray-200 rounded-md mb-4 flex items-center justify-center">
+
+                {/* <img src='potato.jpeg'></img> */}
+                <img src={product.images[0]} alt={product.name} width={200} />
+              
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800">{product.name}</h3>
+              <p className="text-gray-600 mt-1">₹{product.price} / {product.unit}</p>
+              <p className={`text-sm mt-2 ${product.stock > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {product.stock > 0 ? `In Stock: ${product.stock}` : 'Out of Stock'}
+              </p>
+              {/* <button 
+                // CRITICAL FIX: Pass a function to onClick, don't call it directly
+                onClick={() => addToCart(product)} 
+                disabled={product.stock === 0}
+                className="mt-4 w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                Add to Cart
+              </button> */}
+              <button
+                onClick={() => addToCart({ ...product, qty: 1 })}
+                disabled={product.stock === 0}
+                className="mt-4 w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                Add to Cart
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ProductList;====== ./src/components/Footer.jsx ======
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { FaInstagram, FaFacebook, FaWhatsapp } from 'react-icons/fa';
+
+const Footer = () => {
+  return (
+    <footer className="bg-brand-green text-green-100 mt-16">
+      <div className="container mx-auto px-6 py-10">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          {/* Column 1: Brand Info */}
+          <div>
+            <h3 className="text-xl font-bold text-white mb-4">Suprabhat</h3>
+            <p className="text-green-200">
+              Your daily source for fresh, locally-sourced produce. Delivered with care, from our community to yours.
+            </p>
+          </div>
+
+          {/* Column 2: Quick Links */}
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">Quick Links</h3>
+            <ul className="space-y-2">
+              <li><Link to="/products" className="hover:text-white transition-colors">Shop</Link></li>
+              <li><Link to="/about" className="hover:text-white transition-colors">About Us</Link></li>
+              <li><Link to="/contact" className="hover:text-white transition-colors">Contact</Link></li>
+              <li><Link to="/profile" className="hover:text-white transition-colors">My Account</Link></li>
+            </ul>
+          </div>
+
+          {/* Column 3: Contact Info */}
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">Get in Touch</h3>
+            <p className="text-green-200">Pune, Maharashtra</p>
+            <p className="text-green-200 mt-2">suprabhat.fresh@example.com</p>
+            <p className="text-green-200 mt-2">+91 98765 43210</p>
+          </div>
+
+          {/* Column 4: Social Media */}
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">Follow Us</h3>
+            <div className="flex space-x-4">
+              <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="text-green-100 hover:text-white text-2xl transition-transform hover:scale-110">
+                <FaInstagram />
+              </a>
+              <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="text-green-100 hover:text-white text-2xl transition-transform hover:scale-110">
+                <FaFacebook />
+              </a>
+              <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" className="text-green-100 hover:text-white text-2xl transition-transform hover:scale-110">
+                <FaWhatsapp />
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Bar */}
+        <div className="border-t border-green-700 mt-8 pt-6 text-center text-green-200 text-sm">
+          <p>© {new Date().getFullYear()} Suprabhat. All Rights Reserved.</p>
+        </div>
+      </div>
+    </footer>
+  );
+};
+
+export default Footer;====== ./src/components/ProductForm.jsx ======
+import React, { useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+const productSchema = z.object({
+  name: z.string().min(3, 'Name is required'),
+  description: z.string().min(10, 'Description is required'),
+  price: z.coerce.number().positive('Price must be a positive number'),
+  stock: z.coerce.number().int().nonnegative('Stock must be a non-negative integer'),
+  category: z.string().min(3, 'Category is required'),
+  unit: z.enum(['kg', 'piece', 'bunch', 'dozen']),
+});
+
+const ProductForm = ({ product, onSubmit, isLoading, onCancel }) => {
+  const { register, handleSubmit, formState: { errors }, reset } = useForm({
+    resolver: zodResolver(productSchema),
+    defaultValues: product || { unit: 'kg' },
+  });
+
+  useEffect(() => {
+    reset(product || { unit: 'kg' });
+  }, [product, reset]);
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Product Name</label>
+          <input {...register('name')} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" />
+          {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Category</label>
+          <input {...register('category')} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" />
+          {errors.category && <p className="text-red-500 text-sm mt-1">{errors.category.message}</p>}
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Description</label>
+        <textarea {...register('description')} rows="3" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" />
+        {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description.message}</p>}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Price (₹)</label>
+          <input type="number" step="0.01" {...register('price')} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" />
+          {errors.price && <p className="text-red-500 text-sm mt-1">{errors.price.message}</p>}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Stock</label>
+          <input type="number" {...register('stock')} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" />
+          {errors.stock && <p className="text-red-500 text-sm mt-1">{errors.stock.message}</p>}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Unit</label>
+          <select {...register('unit')} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+            <option value="kg">kg</option>
+            <option value="piece">piece</option>
+            <option value="bunch">bunch</option>
+            <option value="dozen">dozen</option>
+          </select>
+        </div>
+      </div>
+      <div className="pt-4 flex justify-end gap-3">
+        <button type="button" onClick={onCancel} className="bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">
+          Cancel
+        </button>
+        <button type="submit" disabled={isLoading} className="bg-brand-green text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-green-light disabled:opacity-50">
+          {isLoading ? 'Saving...' : 'Save Product'}
+        </button>
+      </div>
+    </form>
+  );
+};
+export default ProductForm;====== ./src/components/Header.jsx ======
+import React, { useState } from 'react';
+import { FaBars, FaTimes } from 'react-icons/fa';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/store/authStore.js';
+import { useCartStore } from '@/store/cartStore.js';
+
+const Header = () => {
+  const { isAuthenticated, user, logout } = useAuthStore();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const totalItems = useCartStore((state) => state.getTotalItems());
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  // --- NEW: Determine if the logged-in user is an admin ---
+  const isAdmin = user?.role === 'admin';
+
+  const closeMenu = () => setIsMenuOpen(false);
+
+  return (
+    <header className="bg-white shadow-md sticky top-0 z-20">
+      {/* Main Header Bar */}
+      <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+        <Link to="/" className="flex items-center gap-2 text-2xl font-bold text-brand-green hover:text-green-700">
+          <img src="/suprabhaticon.png" alt="Suprabhat Logo" className='h-12 w-12' />
+          <span>Suprabhat</span>
+        </Link>
+        
+        {/* --- Desktop Navigation --- */}
+        <nav className="hidden md:flex items-center space-x-6">
+          <Link to="/products" className="text-gray-700 hover:text-brand-green font-medium">Shop</Link>
+          <Link to="/about" className="text-gray-700 hover:text-brand-green font-medium">About</Link>
+          <Link to="/contact" className="text-gray-700 hover:text-brand-green font-medium">Contact</Link>
+          
+          {/* --- NEW: Conditionally render Admin link for desktop --- */}
+          {isAdmin && (
+             <Link to="/admin/products" className="font-bold text-brand-accent hover:text-orange-500">Admin Panel</Link>
+          )}
+
+          <Link to="/cart" className="relative text-gray-700 hover:text-brand-green">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            {totalItems > 0 && (
+              <span className="absolute -top-2 -right-3 bg-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                {totalItems}
+              </span>
+            )}
+          </Link>
+
+          {isAuthenticated ? (
+            <>
+              <Link to="/profile" className="text-gray-700 hover:text-brand-green font-medium">Profile</Link>
+              <button onClick={handleLogout} className="text-gray-700 hover:text-brand-green font-medium bg-transparent border-none cursor-pointer p-0">
+                Logout
+              </button>
+            </>
+          ) : (
+            <Link to="/login" className="text-gray-700 hover:text-brand-green font-medium">Login</Link>
+          )}
+        </nav>
+
+        {/* --- Mobile Menu Button (Hamburger) --- */}
+        <div className="md:hidden flex items-center">
+          <Link to="/cart" className="relative text-gray-700 hover:text-brand-green mr-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+            {totalItems > 0 && <span className="absolute -top-2 -right-3 bg-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">{totalItems}</span>}
+          </Link>
+          <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-gray-700 text-2xl">
+            {isMenuOpen ? <FaTimes /> : <FaBars />}
+          </button>
+        </div>
+      </div>
+
+      {/* --- Mobile Navigation Menu --- */}
+      {isMenuOpen && (
+        <div className="md:hidden bg-white border-t border-gray-200">
+          <nav className="flex flex-col items-center space-y-4 py-4">
+            <Link to="/products" onClick={closeMenu} className="text-gray-700 hover:text-brand-green font-medium">Shop</Link>
+            <Link to="/about" onClick={closeMenu} className="text-gray-700 hover:text-brand-green font-medium">About</Link>
+            <Link to="/contact" onClick={closeMenu} className="text-gray-700 hover:text-brand-green font-medium">Contact</Link>
+            
+            {/* --- NEW: Conditionally render Admin link for mobile --- */}
+            {isAdmin && (
+              <Link to="/admin/products" onClick={closeMenu} className="font-bold text-brand-accent hover:text-orange-500">Admin Panel</Link>
+            )}
+
+            <div className="border-t w-full my-2"></div>
+
+            {isAuthenticated ? (
+              <>
+                <Link to="/profile" onClick={closeMenu} className="text-gray-700 hover:text-brand-green font-medium">Profile</Link>
+                <button onClick={() => { handleLogout(); closeMenu(); }} className="text-gray-700 hover:text-brand-green font-medium">
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link to="/login" onClick={closeMenu} className="text-gray-700 hover:text-brand-green font-medium">Login</Link>
+            )}
+          </nav>
+        </div>
+      )}
+    </header>
+  );
+};
+
+export default Header;====== ./src/components/AdminLayout.jsx ======
+import React from 'react';
+import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
+import { useAuthStore } from '@/store/authStore.js';
+
+const AdminLayout = () => {
+  const { isAuthenticated, user } = useAuthStore();
+  const location = useLocation();
+
+  if (!isAuthenticated || user?.role !== 'admin') {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return (
+    <div className="container mx-auto px-6 py-8">
+      <h1 className="text-3xl font-bold text-brand-green mb-4">Admin Dashboard</h1>
+      <div className="flex border-b mb-6">
+        <Link to="/admin/products" className="py-2 px-4 font-medium text-gray-600 hover:text-brand-green border-b-2 border-transparent hover:border-brand-green">Product Management</Link>
+        {/* <Link to="/admin/orders" className="...">Order Management</Link> */}
+      </div>
+      <Outlet />
+    </div>
+  );
+};
+export default AdminLayout;====== ./src/App.jsx ======
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Header from '@/components/Header.jsx';
+import Footer from '@/components/Footer.jsx'; // <-- Import Footer
+import HomePage from '@/pages/HomePage.jsx';
+import ProductsPage from '@/pages/ProductsPage.jsx';
+import CartPage from '@/pages/CartPage.jsx';
+import AuthPage from '@/pages/AuthPage.jsx';
+import ProfilePage from '@/pages/ProfilePage.jsx';
+import AboutPage from '@/pages/AboutPage.jsx';
+import ContactPage from '@/pages/ContactPage.jsx'; // <-- Import Contact Page
+//... other imports
+import AdminLayout from '@/components/AdminLayout.jsx';
+import ProductManagementPage from '@/pages/admin/ProductManagementPage.jsx';
+
+function App() {
+  return (
+    <Router>
+      <div className="bg-brand-beige min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-grow"> {/* Use flex-grow to push footer down */}
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/products" element={<ProductsPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} /> {/* <-- Add Route */}
+            <Route path="/cart" element={<CartPage />} />
+            <Route path="/login" element={<AuthPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+             <Route path="/admin" element={<AdminLayout />}>
+              <Route path="products" element={<ProductManagementPage />} />
+              {/* Add more admin routes here like <Route path="orders" ... /> */}
+            </Route>
+          </Routes>
+        </main>
+        <Footer /> {/* <-- Add Footer here */}
+      </div>
+    </Router>
+  );
+}
+
+export default App;====== ./src/main.jsx ======
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App.jsx';
+import './index.css';
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+// Create a client
+const queryClient = new QueryClient();
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
+  </React.StrictMode>
+);====== ./src/data/productList.js ======
+const products = [
+  { id: 1, name: 'Tomatoes', price: 60, image: 'public/images/tomato.jpeg', unit: 'kg', stock: 20 },
+  { id: 2, name: 'Potatoes', price: 30, image: '/images/potato.jpeg', unit: 'kg', stock: 30 },
+  { id: 3, name: 'Wheat Flour', price: 45, image: 'https://via.placeholder.com/300?text=Flour', unit: 'kg', stock: 10 },
+  { id: 4, name: 'Sugar', price: 40, image: 'https://via.placeholder.com/300?text=Sugar', unit: 'kg', stock: 15 },
+  { id: 5, name: 'Tea Powder', price: 90, image: 'https://via.placeholder.com/300?text=Tea', unit: '500g', stock: 8 },
+];
+
+export default products;====== ./src/index.css ======
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-brand-beige text-brand-text;
+}====== ./src/api/orders.js ======
+import axios from 'axios';
+import { useAuthStore } from '@/store/authStore.js';
+
+const apiClient = axios.create({
+  baseURL: '/api/v1/orders',
+});
+
+// Use the same interceptor pattern to add the token
+apiClient.interceptors.request.use((config) => {
+  const { token } = useAuthStore.getState();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+/**
+ * Fetches all orders for the currently logged-in user.
+ */
+export const fetchMyOrders = async () => {
+  const response = await apiClient.get('/');
+  return response.data.data;
+};====== ./src/api/auth.js ======
+import axios from 'axios';
+
+// The base URL for our API calls is now just '/api/v1'.
+// Vite's proxy will handle forwarding this to http://localhost:8000.
+const API_URL = '/api/v1/auth';
+
+const apiClient = axios.create({
+  baseURL: API_URL,
+});
+
+/**
+ * Registers a new user.
+ * @param {Object} userData - { name, email, password }
+ * @returns {Promise<Object>} The user and token data.
+ */
+export const registerUser = async (userData) => {
+  const response = await apiClient.post('/register', userData);
+  // The backend ApiResponse nests the actual data in `response.data.data`
+  return response.data.data;
+};
+
+/**
+ * Logs in a user.
+ * @param {Object} credentials - { email, password }
+ * @returns {Promise<Object>} The user and token data.
+ */
+export const loginUser = async (credentials) => {
+  const response = await apiClient.post('/login', credentials);
+  return response.data.data;
+};====== ./src/api/users.js ======
+import axios from 'axios';
+import { useAuthStore } from '@/store/authStore.js';
+
+const apiClient = axios.create({
+  baseURL: '/api/v1/users', // Base URL for user-related endpoints
+});
+
+// Add a request interceptor to include the auth token in every request
+apiClient.interceptors.request.use(
+  (config) => {
+    const { token } = useAuthStore.getState();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+/**
+ * Fetches the profile of the currently logged-in user.
+ */
+export const fetchMyProfile = async () => {
+  const response = await apiClient.get('/me');
+  return response.data.data;
+};    ====== ./src/api/admin.js ======
+import axios from 'axios';
+import { useAuthStore } from '@/store/authStore.js';
+
+// Admin endpoints are prefixed with /api/v1/products/admin
+const apiClient = axios.create({
+  baseURL: '/api/v1', 
+});
+
+// Use an interceptor to add the auth token to every admin request
+apiClient.interceptors.request.use(
+  (config) => {
+    const { token } = useAuthStore.getState();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+/**
+ * Fetches all products (including unpublished/out of stock) for the admin view.
+ * This is different from the public fetchProducts which only gets available items.
+ */
+// export const fetchAllProductsAdmin = async () => {
+//   // Use the public products endpoint but with query params to show all
+//   const response = await apiClient.get('/products?inStock=false&isPublished=all&limit=1000');
+//   return response.data.data;
+// };
+
+/**
+ * Creates a new product.
+ * @param {Object} productData - The data for the new product.
+ */
+export const createProduct = async (productData) => {
+  const response = await apiClient.post('/products/admin', productData);
+  return response.data.data;
+};
+
+/**
+ * Updates an existing product.
+ * @param {string} productId - The ID of the product to update.
+ * @param {Object} updateData - The data to update.
+ */
+export const updateProduct = async ({ productId, updateData }) => {
+  const response = await apiClient.put(`/products/admin/${productId}`, updateData);
+  return response.data.data;
+};
+
+/**
+ * Deletes a product.
+ * @param {string} productId - The ID of the product to delete.
+ */
+export const deleteProduct = async (productId) => {
+  // We need to build this endpoint on the backend.
+  // For now, we "soft delete" by un-publishing.
+  // const response = await apiClient.put(`/products/admin/${productId}`, { isPublished: false });
+  // return response.data.data;
+   await apiClient.delete(`/products/admin/${productId}`);
+  return productId;
+};
+
+// NEW function to re-publish a product
+export const publishProduct = async (productId) => {
+  const response = await apiClient.put(`/products/admin/${productId}`, { isPublished: true });
+  return response.data.data;
+}
+
+// This function is for toggling the isPublished flag
+export const togglePublishStatus = async ({ productId, isPublished }) => {
+    const response = await apiClient.put(`/products/admin/${productId}`, { isPublished });
+    return response.data.data;
+}
+
+export const fetchAllProductsAdmin = async () => {
+  const response = await apiClient.get('/products/admin/all'); // Use the new dedicated route
+  return response.data.data;
+};====== ./src/api/products.js ======
+import axios from 'axios';
+
+// The base URL for our backend API.
+// In a real app, this would come from an environment variable.
+const API_URL = '/api/v1';
+
+const apiClient = axios.create({
+  baseURL: API_URL,
+});
+
+/**
+ * Fetches a list of products from the backend.
+ * @returns {Promise<Object>} The response from the API containing products.
+ */
+export const fetchProducts = async () => {
+  // The actual data is in response.data.data
+  const response = await apiClient.get('/products');
+  return response.data.data; 
+};====== ./src/store/cartStore.js ======
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+export const useCartStore = create(
+  persist(
+    (set, get) => ({
+      items: [], // Array to hold { product, quantity }
+
+      // --- ACTIONS ---
+
+      /**
+       * Adds a product to the cart or increments its quantity if it already exists.
+       */
+      addToCart: (product) => {
+        const cart = get().items;
+        const findProduct = cart.find((item) => item.product._id === product._id);
+
+        if (findProduct) {
+          // If product exists, just increment quantity
+          findProduct.quantity += 1;
+        } else {
+          // If product doesn't exist, add it with quantity 1
+          cart.push({ product: product, quantity: 1 });
+        }
+
+        set({ items: [...cart] });
+      },
+
+      /**
+       * Removes a product completely from the cart.
+       */
+      removeFromCart: (productId) => {
+        set({
+          items: get().items.filter((item) => item.product._id !== productId),
+        });
+      },
+
+      /**
+       * Increments the quantity of a product in the cart.
+       */
+      incrementQuantity: (productId) => {
+        const cart = get().items;
+        const findProduct = cart.find((item) => item.product._id === productId);
+        if (findProduct) {
+          findProduct.quantity += 1;
+        }
+        set({ items: [...cart] });
+      },
+
+      /**
+       * Decrements the quantity of a product. Removes it if quantity becomes 0.
+       */
+      decrementQuantity: (productId) => {
+        const cart = get().items;
+        const findProduct = cart.find((item) => item.product._id === productId);
+        if (findProduct && findProduct.quantity > 1) {
+          findProduct.quantity -= 1;
+          set({ items: [...cart] });
+        } else {
+          // If quantity is 1, remove the item completely
+          get().removeFromCart(productId);
+        }
+      },
+
+      /**
+       * Clears the entire cart.
+       */
+      clearCart: () => {
+        set({ items: [] });
+      },
+
+      // --- SELECTORS / DERIVED STATE ---
+
+      /**
+       * Calculates the total number of items in the cart.
+       */
+      getTotalItems: () => {
+        return get().items.reduce((total, item) => total + item.quantity, 0);
+      },
+
+      /**
+       * Calculates the total price of all items in the cart.
+       */
+      getTotalPrice: () => {
+        return get().items.reduce((total, item) => total + item.product.price * item.quantity, 0);
+      },
+    }),
+    {
+      name: 'cart-storage', // Persist cart to localStorage
+    }
+  )
+);====== ./src/store/authStore.js ======
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+// The persist middleware will automatically save the store's state
+// to localStorage, so the user stays logged in after a refresh.
+
+export const useAuthStore = create(
+  persist(
+    (set) => ({
+      token: null,
+      user: null,
+      isAuthenticated: false,
+
+      // Action to set token and user data upon login
+      login: (userData) => {
+        const { user, token } = userData;
+        set({ token, user, isAuthenticated: true });
+      },
+
+      // Action to clear data upon logout
+      logout: () => {
+        set({ token: null, user: null, isAuthenticated: false });
+      },
+    }),
+    {
+      name: 'auth-storage', // name of the item in storage
+    }
+  )
+);====== ./eslint.config.js ======
+import js from '@eslint/js'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+
+export default [
+  { ignores: ['dist'] },
+  {
+    files: ['**/*.{js,jsx}'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        ecmaFeatures: { jsx: true },
+        sourceType: 'module',
+      },
+    },
+    plugins: {
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+    },
+    rules: {
+      ...js.configs.recommended.rules,
+      ...reactHooks.configs.recommended.rules,
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'react-refresh/only-export-components': [
+        'warn',
+        { allowConstantExport: true },
+      ],
+    },
+  },
+]
+====== ./index.html ======
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + React</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+====== ./package.json ======
+{
+  "name": "suprabhat-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.1.1",
+    "@tanstack/react-query": "^5.80.7",
+    "axios": "^1.10.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-hook-form": "^7.58.1",
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^7.6.2",
+    "zod": "^3.25.67",
+    "zustand": "^5.0.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.25.0",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^4.4.1",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.25.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "globals": "^16.0.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.3.5"
+  }
+}
+====== ./.gitignore ======
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+====== ./postcss.config.js ======
+export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+====== ./tailwind.config.js ======
+/** @type {import('tailwindcss').Config} */
+import defaultTheme from 'tailwindcss/defaultTheme'; // Import default theme
+
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {
+      // Define a beautiful, organic color palette
+      colors: {
+        'brand-green': '#2a623d', // A deep, rich green
+        'brand-green-light': '#3a8654',
+        'brand-beige': '#f5f5dc', // A warm, natural background
+        'brand-text': '#3a3a3a', // A softer black for text
+        'brand-accent': '#ff8c42', // A vibrant orange accent
+      },
+      // Set Poppins as the primary font
+      fontFamily: {
+        sans: ['Poppins', ...defaultTheme.fontFamily.sans],
+      },
+    },
+  },
+  plugins: [],
+}
