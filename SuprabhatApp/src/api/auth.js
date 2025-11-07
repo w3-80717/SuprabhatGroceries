@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // The base URL for our API calls.
 // In React Native, this needs to be a full URL, not a relative path like for Vite proxy.
-const API_URL = 'http://192.168.1.124:8000/api/v1/auth'; // IMPORTANT: Change to your backend server's actual IP/domain
+const API_URL = 'http://localhost:8000/api/v1/auth'; // IMPORTANT: Change to your backend server's actual IP/domain
 
 const apiClient = axios.create({
   baseURL: API_URL,

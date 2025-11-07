@@ -1,7 +1,7 @@
 // src/api/products.js
 import axios from 'axios';
 
-const API_URL = 'http://192.168.1.124:8000/api/v1'; // IMPORTANT: Change to your backend server's actual IP/domain
+const API_URL = 'http://localhost:8000/api/v1'; // IMPORTANT: Change to your backend server's actual IP/domain
 
 const apiClient = axios.create({
   baseURL: API_URL,
