@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { useAuthStore } from '@/store/authStore.js';
+import { useAuthStore } from '../store/authStore.js';
 
 const API_URL = 'http://192.168.1.10:8000/api/v1/users';
 
