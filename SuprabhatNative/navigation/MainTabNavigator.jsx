@@ -17,13 +17,16 @@ import AdminNavigator from './AdminNavigator';
 
 import { COLORS } from '../constants/themes';
 import { useAuthStore } from '../store/authStore';
+import { useCartStore } from '../store/cartStore'; // <-- NEW: Import the cart store
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
 const HomeTabs = () => {
     const { user } = useAuthStore();
+    const { items } = useCartStore(); // <-- NEW: Get items from the cart store
     const isAdmin = user?.role === 'admin';
+    const cartProductCount = items.length; // <-- NEW: Calculate the number of unique products
 
     return (
         <Tab.Navigator
@@ -45,7 +48,15 @@ const HomeTabs = () => {
         >
             <Tab.Screen name="Home" component={HomeScreen} />
             <Tab.Screen name="Products" component={ProductsScreen} />
-            <Tab.Screen name="Cart" component={CartScreen} />
+            {/* NEW: Added options prop to the Cart screen to show the badge */}
+            <Tab.Screen 
+                name="Cart" 
+                component={CartScreen} 
+                options={{ 
+                    tabBarBadge: cartProductCount > 0 ? cartProductCount : null,
+                    tabBarBadgeStyle: { backgroundColor: COLORS.brandAccent }
+                }} 
+            />
             <Tab.Screen name="Profile" component={ProfileScreen} />
             {isAdmin && <Tab.Screen name="Admin" component={AdminNavigator} options={{ headerShown: false }} />}
         </Tab.Navigator>
