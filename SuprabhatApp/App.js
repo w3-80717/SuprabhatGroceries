@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'react-native';
+import {NativeWindStyleSheet} from "nativewind"
 
 // Import store
 import { useAuthStore } from './src/store/authStore';
@@ -27,6 +28,10 @@ import { CustomHeader } from './src/components/HeaderFooterWrapper'; // Footer i
 
 // Icons
 import Ionicons from 'react-native-vector-icons/Ionicons';
+
+NativeWindStyleSheet.setOutput({
+  default: "native"
+})
 
 const queryClient = new QueryClient();
 
