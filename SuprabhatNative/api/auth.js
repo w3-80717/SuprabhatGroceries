@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // The base URL for our API calls is now just '/api/v1'.
-const API_URL = 'http://192.168.1.10:8000/api/v1/auth';
+const API_URL = 'http://192.168.1.124:8000/api/v1/auth';
 
 const apiClient = axios.create({
   baseURL: API_URL,
